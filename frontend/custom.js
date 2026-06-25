@@ -555,25 +555,20 @@ function restructureBucketFilters() {
     _orig.apply(this, arguments);
     var list = document.getElementById('bucket-list');
     if (!list) return;
+    // 构建 id→owner 映射
     var ownerMap = {};
     (allBuckets || []).forEach(function(b) { ownerMap[b.id] = b.owner || 'shared'; });
     list.querySelectorAll('.bucket-row').forEach(function(row) {
       var id = row.getAttribute('data-id');
       var owner = ownerMap[id];
-      if (!owner || row.querySelector('.bucket-owner-tag')) return;
+      if (!owner || row.querySelector('.bucket-owner-dot')) return;
       var top = row.querySelector('.bucket-row-top');
       if (!top) return;
-      var iconSpan = top.querySelector('.icon');
-      var tag = document.createElement('span');
-      tag.className = 'bucket-owner-tag';
-      tag.style.background = domainOwnerColor(owner);
-      tag.textContent = domainOwnerLabel(owner);
-      if (iconSpan) {
-        iconSpan.parentNode.insertBefore(tag, iconSpan.nextSibling);
-      } else {
-        // fallback: 放到最前面
-        top.insertBefore(tag, top.firstChild);
-      }
+      var dot = document.createElement('span');
+      dot.className = 'bucket-owner-dot';
+      dot.style.background = domainOwnerColor(owner);
+      dot.title = domainOwnerLabel(owner);
+      top.insertBefore(dot, top.firstChild);
     });
   };
 })();

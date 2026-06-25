@@ -18,12 +18,22 @@
   font-size: 22px; font-weight: 600; color: var(--accent);
   letter-spacing: 0.5px; margin: 0 0 4px 0; width: 100%;
 }
-/* owner 按钮 + 统计强制单行不换行 */
+/* owner 按钮 + 统计：宽屏单行，窄屏自动换行 */
 .domain-owner-row {
-  display: flex; align-items: center; gap: 10px; flex-wrap: nowrap;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   width: 100%;
 }
 .domain-owner-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.domain-stats { flex-shrink: 1; min-width: 0; }
+/* 窄屏（手机端）：owner 按钮 + 统计各自独立行 */
+@media (max-width: 560px) {
+  .domain-owner-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .domain-owner-btns { justify-content: flex-start; flex-wrap: wrap; gap: 4px; }
+  .domain-stats { margin-left: 0; white-space: normal; }
+  .domain-owner-btn { padding: 4px 12px; font-size: 11px; }
+  .domain-controls { gap: 6px; }
+  .domain-controls .filter-btn { padding: 4px 10px; font-size: 10px; }
+}
 .domain-owner-btn {
   padding: 5px 16px; font-size: 12px; font-weight: 500;
   border: 1px solid var(--border); border-radius: 16px;
@@ -70,7 +80,7 @@
 .domain-controls .filter-btn { padding: 5px 12px; font-size: 11px; }
 
 .tl-group {
-  --tl-date-w: 88px; --tl-node-w: 20px; --tl-gap: 12px;
+  --tl-date-w: 68px; --tl-node-w: 18px; --tl-gap: 8px;
   display: grid;
   grid-template-columns: var(--tl-date-w) var(--tl-node-w) 1fr;
   column-gap: var(--tl-gap);
@@ -92,7 +102,7 @@
 }
 .tl-date-main {
   font-family: 'Share Tech Mono', monospace;
-  font-size: 17px; font-weight: 600; color: var(--accent);
+  font-size: 15px; font-weight: 600; color: var(--accent);
   line-height: 1.15;
 }
 .tl-date-sub {
@@ -191,29 +201,16 @@
 .bucket-owner-row .domain-owner-btn {
   padding: 4px 13px; font-size: 11px; border-radius: 14px;
 }
-/* 桶卡片中的 owner 小标签 — 最左侧，图标下方 */
-.bucket-owner-tag {
-  display: inline-block; padding: 1px 5px; margin: 0 6px 0 0;
-  border-radius: 6px; font-size: 8px; color: #fffdf5; line-height: 1.4;
-  font-family: 'Share Tech Mono', monospace; vertical-align: top;
-  flex-shrink: 0; white-space: nowrap;
+/* 桶卡片中的 owner 小圆点 */
+.bucket-owner-dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  margin-right: 5px; vertical-align: middle; flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
 }
-
-/* ── 手机端适配 ── */
-@media (max-width: 520px) {
-  /* 域界面：owner 行允许换行，统计换到下一行 */
-  .domain-owner-row {
-    flex-wrap: wrap !important;
-  }
-  .domain-stats {
-    margin-left: 0 !important;
-    width: 100%;
-  }
-  /* 域界面：filter 按钮组允许换行 */
-  .domain-controls {
-    flex-wrap: wrap;
-  }
-  .domain-controls .filter-btn {
-    padding: 4px 10px; font-size: 10px;
-  }
+/* 窄屏：buckets 筛选按钮缩小 */
+@media (max-width: 560px) {
+  .bucket-filters-row { gap: 4px; }
+  .bucket-filters-row .filter-btn { padding: 4px 10px; font-size: 10px; }
+  .bucket-filters-row .row-label { font-size: 9px; }
+  .bucket-owner-row .domain-owner-btn { padding: 3px 10px; font-size: 10px; }
 }
