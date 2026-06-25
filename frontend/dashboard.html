@@ -1683,7 +1683,7 @@
 
 
   </style>
-  <link rel="stylesheet" href="/static/custom.css?v=2">
+  <link rel="stylesheet" href="/static/custom.css?v=3">
 </head>
 <body>
 
@@ -1842,13 +1842,15 @@
   <div class="domain-view">
     <div class="domain-toolbar">
       <h3>域 / Domain Timeline</h3>
-      <div class="domain-owner-btns">
-        <button class="domain-owner-btn active" data-owner="all">全部</button>
-        <button class="domain-owner-btn" data-owner="alove">Alove</button>
-        <button class="domain-owner-btn" data-owner="pearl">Pearl</button>
-        <button class="domain-owner-btn" data-owner="shared">Shared</button>
+      <div class="domain-owner-row">
+        <div class="domain-owner-btns">
+          <button class="domain-owner-btn active" data-owner="all">全部</button>
+          <button class="domain-owner-btn" data-owner="alove">Alove</button>
+          <button class="domain-owner-btn" data-owner="pearl">Pearl</button>
+          <button class="domain-owner-btn" data-owner="shared">Shared</button>
+        </div>
+        <span class="domain-stats" id="domain-stats">— 桶 · — 钉选</span>
       </div>
-      <span class="domain-stats" id="domain-stats">— 桶 · — 钉选</span>
     </div>
     <p class="domain-intro">
       按写入时间倒序排列，最新在最上方。点击标题查看详情。
@@ -7948,6 +7950,6 @@ function renderSelfEntries() {
 })();
 </script>
 
-<script src="/static/custom.js?v=1"></script>
+<script src="/static/custom.js?v=2"></script>
 </body>
 </html>

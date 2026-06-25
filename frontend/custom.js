@@ -436,6 +436,145 @@ async function testReranker() {
   }
 }
 
+// ════════════════════════════════════════════════════════════
+// 5. Buckets 界面三行筛选器 + owner 过滤 + owner 标签
+// 通过 monkey-patch 实现，不修改 dashboard.html 主脚本
+// ════════════════════════════════════════════════════════════
+
+var _bucketOwnerFilter = 'all';
+
+// 8 固定主题域（与 dehydrator.py / reclassify_api.py 保持一致）
+var FIXED_DOMAINS = ['日常', '人际', '成长', '身心', '兴趣', '数字', '事务', '内心'];
+
+// 旧域 → 8 固定域归一化映射
+var DOMAIN_MAP = {
+  '编程': '数字', 'AI': '数字', '硬件': '数字', '网络': '数字', '云服务': '数字', '安全': '数字',
+  '饮食': '日常', '穿搭': '日常', '出行': '日常', '居家': '日常', '购物': '日常',
+  '家庭': '人际', '恋爱': '人际', '友谊': '人际', '社交': '人际', '关系': '人际', '沟通': '人际',
+  '工作': '成长', '学习': '成长', '考试': '成长', '求职': '成长',
+  '健康': '身心', '心理': '身心', '睡眠': '身心', '运动': '身心',
+  '游戏': '兴趣', '影视': '兴趣', '音乐': '兴趣', '阅读': '兴趣', '创作': '兴趣', '手工': '兴趣', '兴趣创作': '兴趣', '兴趣:创作': '兴趣',
+  '财务': '事务', '计划': '事务', '待办': '事务',
+  '情绪': '内心', '回忆': '内心', '梦境': '内心', '自省': '内心', '自我认知': '内心',
+};
+function normalizeDomain(d) {
+  if (!d) return d;
+  return DOMAIN_MAP[d] || d;
+}
+
+// --- Monkey-patch buildFilters: 单行 → 三行 ---
+(function() {
+  var _orig = window.buildFilters;
+  if (typeof _orig !== 'function') return;
+  window.buildFilters = function() {
+    _orig.apply(this, arguments);
+    restructureBucketFilters();
+  };
+})();
+
+function restructureBucketFilters() {
+  var filters = document.getElementById('filters');
+  if (!filters) return;
+  var btns = Array.prototype.slice.call(filters.querySelectorAll('.filter-btn'));
+  if (!btns.length) return;
+
+  // 分离状态按钮和域按钮
+  var statusBtns = btns.filter(function(b) {
+    return (b.dataset.filter || '').indexOf('domain:') !== 0;
+  });
+
+  var html = '';
+  // Row 1: 状态筛选
+  html += '<div class="bucket-filters-row">';
+  html += '<span class="row-label">状态</span>';
+  statusBtns.forEach(function(b) { html += b.outerHTML; });
+  html += '</div>';
+  // Row 2: 8 固定主题域
+  html += '<div class="bucket-filters-row">';
+  html += '<span class="row-label">主题域</span>';
+  FIXED_DOMAINS.forEach(function(d) {
+    html += '<button class="filter-btn" data-filter="domain:' + d + '">' + d + '</button>';
+  });
+  html += '</div>';
+  // Row 3: owner 筛选
+  html += '<div class="bucket-filters-row bucket-owner-row">';
+  html += '<span class="row-label">Owner</span>';
+  html += '<button class="domain-owner-btn active" data-bucket-owner="all">全部</button>';
+  html += '<button class="domain-owner-btn" data-bucket-owner="alove">Alove</button>';
+  html += '<button class="domain-owner-btn" data-bucket-owner="pearl">Pearl</button>';
+  html += '<button class="domain-owner-btn" data-bucket-owner="shared">Shared</button>';
+  html += '</div>';
+
+  filters.innerHTML = html;
+
+  // owner 按钮事件
+  filters.querySelectorAll('[data-bucket-owner]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      filters.querySelectorAll('[data-bucket-owner]').forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      _bucketOwnerFilter = btn.dataset.bucketOwner;
+      if (typeof renderBuckets === 'function' && typeof filterBuckets === 'function') {
+        renderBuckets(filterBuckets(allBuckets));
+      }
+    });
+  });
+}
+
+// --- Monkey-patch filterBuckets: 域归一化 + owner 过滤 ---
+(function() {
+  var _orig = window.filterBuckets;
+  if (typeof _orig !== 'function') return;
+  window.filterBuckets = function(buckets) {
+    var filtered;
+    // 域筛选：归一化兜底（子域 → 固定域）
+    if (typeof currentFilter === 'string' && currentFilter.indexOf('domain:') === 0) {
+      var target = currentFilter.slice(7);
+      var matches = [target];
+      Object.keys(DOMAIN_MAP).forEach(function(k) { if (DOMAIN_MAP[k] === target) matches.push(k); });
+      filtered = buckets.filter(function(b) {
+        return (b.domain || []).some(function(d) { return matches.indexOf(d) !== -1; });
+      });
+    } else {
+      filtered = _orig.apply(this, arguments);
+    }
+    // owner 过滤
+    if (_bucketOwnerFilter && _bucketOwnerFilter !== 'all') {
+      filtered = filtered.filter(function(b) {
+        return (b.owner || 'shared') === _bucketOwnerFilter;
+      });
+    }
+    return filtered;
+  };
+})();
+
+// --- Monkey-patch renderBuckets: 桶卡片追加 owner 小标签 ---
+(function() {
+  var _orig = window.renderBuckets;
+  if (typeof _orig !== 'function') return;
+  window.renderBuckets = function(buckets) {
+    _orig.apply(this, arguments);
+    var list = document.getElementById('bucket-list');
+    if (!list) return;
+    // 构建 id→owner 映射
+    var ownerMap = {};
+    (allBuckets || []).forEach(function(b) { ownerMap[b.id] = b.owner || 'shared'; });
+    list.querySelectorAll('.bucket-row').forEach(function(row) {
+      var id = row.getAttribute('data-id');
+      var owner = ownerMap[id];
+      if (!owner || row.querySelector('.bucket-owner-tag')) return;
+      var top = row.querySelector('.bucket-row-top');
+      if (!top) return;
+      var tag = document.createElement('span');
+      tag.className = 'bucket-owner-tag';
+      tag.style.background = domainOwnerColor(owner);
+      tag.textContent = domainOwnerLabel(owner);
+      var tagsEl = top.querySelector('.bucket-row-tags');
+      if (tagsEl) top.insertBefore(tag, tagsEl);
+      else top.appendChild(tag);
+    });
+  };
+})();
+
 // 页面加载完成后自动加载 reranker 配置
 document.addEventListener('DOMContentLoaded', function() {
   setTimeout(refreshRrInfo, 800);
