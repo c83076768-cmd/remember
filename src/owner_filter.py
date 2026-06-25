@@ -4,13 +4,13 @@ owner_filter.py — 多 AI 记忆隔离（owner 字段）
 ========================================
 
 为支持多 AI 共享同一 Ombre-Brain 实例，给记忆桶增加 owner 字段：
-  - "a.l."   → A爱 的私有记忆
-  - "pearl"  → Pearl 的私有记忆（兼容老数据 "null"，读取时自动归一化为 "pearl"）
+  - "alove"  → Alove 的私有记忆
+  - "pearl"  → Pearl 的私有记忆
   - "shared" → 群聊/共享记忆（所有 AI 都可读）
 
 关键行为：
 - create() 写入 owner（调用方指定，默认 shared）
-- search() 按 owner 预筛（支持逗号分隔的 OR 查询，如 "a.l.,shared"）
+- search() 按 owner 预筛（支持逗号分隔的 OR 查询，如 "alove,shared"）
 - 老数据没有 owner 字段 → 视为 "shared"（向后兼容）
 
 实现策略（最小侵入 + 抗上游更新）：
@@ -36,16 +36,6 @@ from typing import Optional, Set, List
 # 默认 owner：老数据无 owner 字段时视为共享，保证向后兼容
 DEFAULT_OWNER = "shared"
 
-# owner 别名：老数据用 "null"，现统一为 "pearl"。读取时自动归一化。
-_OWNER_ALIASES = {"null": "pearl"}
-
-
-def _normalize_owner(owner: Optional[str]) -> Optional[str]:
-    """归一化 owner：把废弃别名映射到当前规范名。"""
-    if not owner:
-        return owner
-    return _OWNER_ALIASES.get(owner, owner)
-
 # 当前请求的 owner 上下文（asyncio 安全，每个请求独立）
 _current_owner: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "_current_owner", default=None
@@ -70,12 +60,12 @@ def get_current_owner() -> Optional[str]:
 def parse_owner_param(owner_str: Optional[str]) -> Optional[Set[str]]:
     """
     解析 owner 参数为集合。
-    逗号分隔，支持 OR 查询：如 "a.l.,shared" → {"a.l.", "shared"}
+    逗号分隔，支持 OR 查询：如 "alove,shared" → {"alove", "shared"}
     返回 None 表示不过滤（查所有 owner）。
     """
     if owner_str is None:
         return None
-    parts = {_normalize_owner(p.strip().lower()) for p in str(owner_str).split(",") if p.strip()}
+    parts = {p.strip().lower() for p in str(owner_str).split(",") if p.strip()}
     return parts or None
 
 
@@ -86,7 +76,7 @@ def get_bucket_owner(meta: dict) -> str:
     owner = meta.get("owner")
     if not owner:
         return DEFAULT_OWNER
-    return _normalize_owner(str(owner).strip().lower())
+    return str(owner).strip().lower()
 
 
 def bucket_matches_owner(meta: dict, owner_set: Optional[Set[str]]) -> bool:
@@ -105,7 +95,7 @@ def apply_owner_to_meta(meta: dict, owner: Optional[str]) -> None:
     owner 为 None 或空 → 写入 DEFAULT_OWNER（shared）
     """
     if owner and str(owner).strip():
-        meta["owner"] = _normalize_owner(str(owner).strip().lower())
+        meta["owner"] = str(owner).strip().lower()
     else:
         meta["owner"] = DEFAULT_OWNER
 

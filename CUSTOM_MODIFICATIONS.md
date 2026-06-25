@@ -14,8 +14,9 @@
 | 多 AI 记忆隔离 (owner) | `src/owner_filter.py` | `server.py`, `bucket_manager.py`, `tools/breath/search.py`, `tools/breath/feel.py`, `tools/breath/importance.py`, `tools/breath/surface.py` | 已完成 |
 | 域 / Domain 时间线视图 | `seed_mock_data.py`（mock 数据脚本，可选） | `web/buckets.py`, `frontend/dashboard.html` | 已完成 |
 | Plan/Letter owner 隔离 | 无新建 | `server.py`, `tools/plan/core.py`, `tools/_common.py`, `tools/dream/__init__.py`, `web/hooks.py`, `web/plans.py`, `web/letters.py`, `frontend/dashboard.html` | 已完成 |
+| 前端代码抽离（减少冲突） | `frontend/custom.css`, `frontend/custom.js` | `src/web/dashboard.py`, `frontend/dashboard.html` | 已完成 |
 
-**总计**：4 个新建文件 + 20 个修改文件。
+**总计**：6 个新建文件 + 22 个修改文件。
 
 ---
 
@@ -30,7 +31,7 @@
 #### 1. `src/web/buckets.py`
 
 - 在 `/api/buckets` 响应中新增 3 个字段：
-  - `owner`：记忆池归属（`a.l.` / `pearl` / `shared`）
+  - `owner`：记忆池归属（`alove` / `pearl` / `shared`）
   - `protected`：保护标记
   - `event_time`：事件时间（用于时间线排序）
 
@@ -154,17 +155,17 @@
 
 ### 目的
 
-支持多个 AI（A爱 / Null）共享同一 Ombre-Brain 实例，通过 `owner` 字段实现记忆读写隔离：
-- `a.l.` — A爱 私有记忆
-- `null` — Null 私有记忆
+支持多个 AI（Alove / Pearl）共享同一 Ombre-Brain 实例，通过 `owner` 字段实现记忆读写隔离：
+- `alove` — Alove 私有记忆
+- `pearl` — Pearl 私有记忆
 - `shared` — 群聊共享记忆（所有 AI 可读）
 
 ### 隔离规则
 
 | 场景 | 写入 owner | 读取 owner |
 |------|-----------|-----------|
-| A爱私聊 | `a.l.` | `a.l.,shared` |
-| Null私聊 | `null` | `null,shared` |
+| Alove 私聊 | `alove` | `alove,shared` |
+| Pearl 私聊 | `pearl` | `pearl,shared` |
 | 群聊 | `shared` | `shared` |
 
 ### 新建文件
@@ -172,7 +173,7 @@
 #### 1. `src/owner_filter.py`（115 行）
 
 - **上下文管理**：`set_current_owner` / `reset_current_owner` / `get_current_owner`（基于 `contextvars.ContextVar`，asyncio 安全）
-- **参数解析**：`parse_owner_param("a.l.,shared")` → `{"a.l.", "shared"}`
+- **参数解析**：`parse_owner_param("alove,shared")` → `{"alove", "shared"}`
 - **元数据写入**：`apply_owner_to_meta(meta, owner)` — 写入 `meta["owner"]`
 - **桶匹配**：`bucket_matches_owner(meta, owner_set)` — 检查桶是否属于指定 owner
 - **列表过滤**：`filter_buckets_by_context_owner(buckets)` — 按当前上下文 owner 过滤桶列表
@@ -237,7 +238,7 @@
 
 ### 设计原则
 
-- **owner 和 author 正交**：`author=user/claude` 表示信件方向（原作者设计），`owner=a.l./pearl/shared` 表示归属哪个 AI（我们加的）。例：人类写给 A爱 的信 = `author=user, owner=a.l.`；A爱 写给人类的回信 = `author=claude, owner=a.l.`
+- **owner 和 author 正交**：`author=user/claude` 表示信件方向（原作者设计），`owner=alove/pearl/shared` 表示归属哪个 AI（我们加的）。例：人类写给 Alove 的信 = `author=user, owner=alove`；Alove 写给人类的回信 = `author=claude, owner=alove`
 - **工具数量不变**：只在现有 plan/letter_write/letter_read/dream 四个工具的函数签名加 `owner` 可选参数，不新增工具
 - **Dashboard 默认看全部**：`/api/plans` 和 `/api/letters` 默认返回所有 owner 的数据（人类视角），传 `?owner=` 才筛选
 - **MCP 工具默认按 owner 隔离**：AI 调用时传 owner 才隔离，不传走 shared（向后兼容）
@@ -310,6 +311,106 @@
 
 ---
 
+## 改造五：前端代码抽离（减少 dashboard.html 合并冲突）
+
+### 目的
+
+dashboard.html 是 custom 改造和上游改动冲突最频繁的文件（改造一/三/四都在里面加了 CSS + JS）。把 custom 的 CSS/JS 抽到独立文件后，dashboard.html 里只留两行引用（`<link>` + `<script src>`）和少量侵入点注释，上游改 dashboard.html 主体时几乎不会碰到 custom 代码。
+
+### 新建文件
+
+#### 1. `frontend/custom.css`（约 165 行）
+
+- 域 / Domain Timeline 样式（`.domain-view`、`.tl-*`、`.domain-owner-btn` 等）
+- owner 筛选按钮样式（`.domain-owner-btn[data-owner="alove"].active` 等）
+- 记忆桶卡片样式
+
+#### 2. `frontend/custom.js`（约 470 行）
+
+集中了 4 块 custom JavaScript：
+- **域 / Domain Timeline**：`renderDomainTimeline()`、`domainAttachListeners()`、`domainCleanTitle()`、`escapeHtml()` + `domainState`/`domainOwnerLabel`/`domainOwnerColor`/`_ownerTagHtml` 等辅助函数
+- **Plan owner 筛选**：`setPlanOwnerFilter()` + `_planOwnerFilter` 状态
+- **Letter owner 筛选**：`setLetterOwnerFilter()` + `_letterOwnerFilter` 状态
+- **Reranker UI**：`refreshRrInfo()`、`saveRerankerKey()`、`fetchRerankerModels()`、`testReranker()` + DOMContentLoaded 自动加载
+
+### 修改文件
+
+#### 3. `src/web/dashboard.py`
+
+- **静态文件白名单** `allowed` 字典：新增 `custom.css`（`text/css; charset=utf-8`）和 `custom.js`（`application/javascript; charset=utf-8`）
+- 其余静态文件服务逻辑不变（仍走 `/static/{name}` 路由，文件名精确匹配，无路径穿越风险）
+
+#### 4. `frontend/dashboard.html`
+
+- **删除**：原内嵌的 165 行 custom CSS（`/* ── custom: 域 / Domain Timeline 视图 ── */` 到 `.tl-empty`）
+- **删除**：原内嵌的 domain JS（`renderDomainTimeline` 等约 200 行）
+- **删除**：原内嵌的 plan/letter owner 筛选 JS（`setPlanOwnerFilter`/`setLetterOwnerFilter` 共约 20 行）
+- **删除**：原独立 `<script>` 块的 Reranker UI JS（约 190 行）
+- **新增**：`</style>` 前加 `<link rel="stylesheet" href="/static/custom.css?v=1">`
+- **新增**：`</body>` 前加 `<script src="/static/custom.js?v=1"></script>`
+- **侵入点注释**：`loadPlans` / `loadLetters` 里的 owner 过滤行前加 `// custom: owner filter` 注释
+
+### 加载顺序与依赖
+
+```
+<head>
+  ...上游 <style>...</style>
+  <link rel="stylesheet" href="/static/custom.css?v=1">   ← custom CSS（覆盖上游样式）
+</head>
+<body>
+  ...上游 HTML...
+  <script>...上游 JS（定义 allBuckets/esc/authFetch/readJsonSafe/_SV/showDetail/loadPlans/loadLetters...）</script>
+  <script src="/static/custom.js?v=1"></script>           ← custom JS（依赖上游全局变量/函数）
+</body>
+```
+
+**关键约束**：`custom.js` 必须在主 `<script>` 之后加载，因为它依赖主脚本定义的全局变量/函数（`allBuckets`、`esc`、`authFetch`、`readJsonSafe`、`_SV`、`showDetail`、`loadPlans`、`loadLetters`）。放在 `</body>` 前可保证这一点。
+
+### 侵入点清单（dashboard.html 里仍需维护的 custom 代码）
+
+抽离后 dashboard.html 里剩下的 custom 痕迹只有这些，上游合并时需确认它们仍在：
+
+| 位置 | 内容 | 用途 |
+|------|------|------|
+| `<head>` 末尾 | `<link rel="stylesheet" href="/static/custom.css?v=1">` | 加载 custom CSS |
+| `<body>` 末尾 | `<script src="/static/custom.js?v=1"></script>` | 加载 custom JS |
+| 域视图 HTML | `id="domain-view"` 整块 + owner 筛选按钮 + `onclick="setPlanOwnerFilter(...)"` | 域视图 DOM 结构 |
+| 计划面板 HTML | owner 筛选按钮 `onclick="setPlanOwnerFilter(...)"` | plan owner 筛选 UI |
+| 信件面板 HTML | owner 筛选按钮 `onclick="setLetterOwnerFilter(...)"` + 写信表单 owner 下拉框 | letter owner 筛选 UI |
+| `loadPlans()` | `// custom: owner filter` + `_planOwnerFilter` 过滤行 | plan API 请求带 owner 参数 |
+| `loadLetters()` | `// custom: owner filter` + `_letterOwnerFilter` 过滤行 | letter API 请求带 owner 参数 |
+| `_renderLetter()` | `${_ownerTagHtml(l.owner)}` 调用 | 信件卡片显示 owner 标签 |
+| Tab 切换逻辑 | `if (target === 'domain') renderDomainTimeline();` | 切到域视图时渲染时间线 |
+| `loadBuckets()` 末尾 | `renderDomainTimeline()` 调用（如域视图可见） | 桶加载后刷新域视图 |
+
+### 上游更新时需检查
+
+| 上游改动点 | 检查内容 |
+|-----------|---------|
+| `dashboard.html` 的 `<head>` | 确认 `<link rel="stylesheet" href="/static/custom.css?v=1">` 仍在 `</style>` 后 |
+| `dashboard.html` 的 `<body>` 末尾 | 确认 `<script src="/static/custom.js?v=1"></script>` 仍在主 `</script>` 后 |
+| `dashboard.py` 的静态文件白名单 | 确认 `custom.css` / `custom.js` 仍在 `allowed` 字典里 |
+| `custom.js` 依赖的全局变量/函数 | 上游是否重命名 `allBuckets`/`esc`/`authFetch`/`readJsonSafe`/`_SV`/`showDetail`/`loadPlans`/`loadLetters`，导致 custom.js 调用失败 |
+| `dashboard.html` 的侵入点 | 确认 owner 筛选按钮、域视图 DOM、`renderDomainTimeline()` 调用仍在 |
+
+### 抽离经验
+
+1. **CSS 变量依赖**：custom.css 依赖上游 `<style>` 里定义的 CSS 变量（`--accent`、`--border`、`--surface`、`--text-dim`、`--warning`、`--negative`、`--positive` 等）。只要 `<link>` 在 `</style>` 之后加载，变量就能正确解析。如果上游重命名变量，custom.css 里对应变量会失效（视觉降级，不报错）。
+
+2. **JS 全局依赖**：custom.js 不能用 ES module（`import`/`export`），因为上游主脚本是普通 `<script>`，全局变量挂在 `window` 上。custom.js 也用普通 `<script>` 加载，直接访问全局变量即可。
+
+3. **函数声明 hoisting**：custom.js 里 `renderDomainTimeline` 调用了 `escapeHtml`，但 `escapeHtml` 定义在后面。因为 JavaScript function 声明会被 hoisting，所以顺序不重要。但若改用 `var escapeHtml = function() {...}`，则必须保证定义在使用之前。
+
+4. **DOMContentLoaded 时机**：custom.js 里有 `document.addEventListener('DOMContentLoaded', ...)` 回调。因为 custom.js 在主脚本之后、`</body>` 之前同步加载，DOMContentLoaded 尚未触发，回调能正确执行。
+
+5. **缓存控制**：`<link>` 和 `<script>` 用 `?v=1` 查询参数做缓存控制。更新 custom.css/custom.js 后，需把 dashboard.html 里的 `?v=1` 改成 `?v=2` 强制浏览器刷新缓存。或者直接 Ctrl+F5 硬刷新。
+
+6. **静态文件安全**：dashboard.py 的 `/static/{name}` 路由用白名单字典精确匹配文件名，不暴露目录遍历风险。新增 custom 文件只需在 `allowed` 字典加一行即可。
+
+7. **抽离验证方法**：抽离后用 `node --check custom.js` 验证 JS 语法；用 `curl http://localhost:8000/static/custom.css` 验证 200 返回；浏览器打开 dashboard 后看服务日志是否有 `GET /static/custom.css` 和 `GET /static/custom.js` 的 200 记录；看 `/api/reranker/config` 是否被请求（验证 `refreshRrInfo` 执行了）。
+
+---
+
 ## 上游更新操作流程
 
 ```bash
@@ -342,6 +443,7 @@ git merge --no-edit origin/main
 
 | 日期 | 上游版本 | 操作 | 说明 |
 |------|---------|------|------|
+| 2026-06-25 | v2.3.17 | 新增改造五 | 前端代码抽离：dashboard.html 的 custom CSS（165行）→ custom.css，custom JS（domain/owner/reranker 约470行）→ custom.js，dashboard.py 白名单加 css/js serve，dashboard.html 留 `<link>`+`<script src>` 引用 + 侵入点注释 |
 | 2026-06-25 | v2.3.17 | 新增改造四 | Plan/Letter owner 隔离：plan/letter_write/letter_read/dream 加 owner 参数 + plan/core.py 去重读取过滤 + _common auto-resolve 过滤 + dream 过滤 + hooks/plans/letters API 加 ?owner= + dashboard 加 owner 筛选 |
 | 2026-06-25 | v2.3.17 | 合并 v2.3.17 | OAuth 副连接器修复：`/.well-known/oauth-protected-resource/{path}` 严格匹配。冲突文件：`src/server.py`（手动合并 401 中间件 resource_metadata 动态路径）。不影响 custom 改造 |
 | 2026-06-25 | v2.3.16 | 合并 v2.3.12→v2.3.16 | pinned 计数修复 + Windows config.yaml 目录崩溃修复 + 只读根文件系统修复 + 改称呼同步旧记忆 + decay 自愈降级孤儿固化桶。冲突文件 6 个（手动合并 `_common.py`/`utils.py`/`decay_engine.py`/`dashboard.html`，`docs/CLAUDE_PROMPT.md`/`docker-publish.yml` 直接用上游）。不影响 custom 改造 |

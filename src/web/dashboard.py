@@ -64,6 +64,9 @@ def register(mcp) -> None:
             "favicon.svg": "image/svg+xml",
             "manifest.json": "application/manifest+json",
             "RRPL.ttf": "font/truetype",
+            # custom: 抽离的前端资源（改造四：减少 dashboard.html 合并冲突）
+            "custom.css": "text/css; charset=utf-8",
+            "custom.js": "application/javascript; charset=utf-8",
         }
         if name not in allowed:
             return JSONResponse({"error": "not found"}, status_code=404)

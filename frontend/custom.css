@@ -1,0 +1,172 @@
+/* ============================================================
+ * custom.css — Ombre-Brain custom 改造样式
+ * 从 dashboard.html 抽离，减少上游合并冲突。
+ * 包含：域/Domain 时间线 + owner 筛选按钮样式。
+ * 依赖：dashboard.html <style> 里定义的 CSS 变量（--accent 等）。
+ * ============================================================ */
+
+/* ── custom: 域 / Domain Timeline 视图 ── */
+.domain-view {
+  max-width: 960px; margin: 0 auto; padding: 0 4px;
+}
+.domain-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.domain-toolbar h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 22px; font-weight: 600; color: var(--accent);
+  letter-spacing: 0.5px; margin: 0;
+}
+.domain-owner-btns { display: flex; gap: 6px; }
+.domain-owner-btn {
+  padding: 5px 16px; font-size: 12px; font-weight: 500;
+  border: 1px solid var(--border); border-radius: 16px;
+  background: var(--surface); color: var(--text-dim);
+  cursor: pointer; transition: all 0.2s;
+  backdrop-filter: blur(6px);
+}
+.domain-owner-btn:hover { border-color: var(--accent); color: var(--text); }
+.domain-owner-btn.active {
+  color: #fffdf5; border-color: transparent;
+  background: linear-gradient(150deg, var(--accent-light), var(--accent));
+  box-shadow: inset 3px 3px 7px rgba(120,90,20,0.30), inset -2px -2px 5px rgba(255,255,255,0.25);
+}
+.domain-owner-btn[data-owner="alove"].active { background: linear-gradient(150deg, #A05A80, #8B4A6A); border-color: transparent; }
+.domain-owner-btn[data-owner="pearl"].active { background: linear-gradient(150deg, #5A8CA0, #4A6C8B); border-color: transparent; }
+.domain-owner-btn[data-owner="shared"].active { background: linear-gradient(150deg, #5A9C70, #4A7C59); border-color: transparent; }
+.domain-stats {
+  margin-left: auto; font-size: 12px; color: var(--text-dim);
+  font-family: 'Share Tech Mono', monospace; white-space: nowrap;
+}
+.domain-stats b { color: var(--accent); font-weight: 600; }
+.domain-intro {
+  font-size: 12px; color: var(--text-dim); line-height: 1.7;
+  margin: 0 0 2px;
+}
+.domain-legend {
+  font-size: 11px; color: var(--text-light); line-height: 1.7;
+  margin: 0 0 14px; opacity: 0.75;
+}
+.domain-controls {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 18px;
+}
+.domain-controls input[type=text] {
+  flex: 1; min-width: 140px;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 7px 14px; border-radius: 16px;
+  font-family: inherit; font-size: 12px;
+  box-shadow: inset 2px 2px 4px var(--shadow-dark-subtle), inset -2px -2px 4px var(--shadow-light);
+}
+.domain-controls input[type=text]:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.domain-controls .filter-btn { padding: 5px 12px; font-size: 11px; }
+
+.tl-group {
+  --tl-date-w: 88px; --tl-node-w: 20px; --tl-gap: 12px;
+  display: grid;
+  grid-template-columns: var(--tl-date-w) var(--tl-node-w) 1fr;
+  column-gap: var(--tl-gap);
+  margin-bottom: 18px;
+  position: relative;
+}
+/* 时间线垂直连线（贯穿所有 group） */
+.tl-group::before {
+  content: ''; position: absolute;
+  left: calc(var(--tl-date-w) + var(--tl-gap) + var(--tl-node-w) / 2 - 0.5px);
+  top: -18px; bottom: -18px;
+  width: 1px; background: var(--border-strong); opacity: 0.45;
+}
+.tl-group:first-child::before { top: 10px; }
+.tl-group:last-child::before { bottom: calc(100% - 20px); }
+/* 左侧日期块 */
+.tl-date-block {
+  text-align: right; padding-right: 2px; padding-top: 6px;
+}
+.tl-date-main {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 17px; font-weight: 600; color: var(--accent);
+  line-height: 1.15;
+}
+.tl-date-sub {
+  font-size: 11px; color: var(--text-dim);
+  font-family: 'Cormorant Garamond', serif; font-style: italic;
+  margin-top: 3px; line-height: 1.2;
+}
+/* 中间时间线节点 */
+.tl-node {
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 10px; position: relative; z-index: 1;
+}
+.tl-node::after {
+  content: ''; width: 11px; height: 11px; border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--bg);
+  box-shadow: 0 0 0 1.5px var(--border-strong);
+}
+.tl-group[data-has-pinned="true"] .tl-node::after { background: #B85C3C; }
+.tl-group[data-has-feel="true"] .tl-node::after { background: #8B6A8B; }
+/* 右侧卡片 */
+.tl-card {
+  background: var(--surface);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: 2px 2px 6px var(--shadow-dark-subtle), -1px -1px 3px var(--shadow-light);
+}
+.tl-card-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 14px;
+  background: var(--surface-solid);
+  border-bottom: 1px solid var(--border);
+  font-size: 10.5px; color: var(--text-dim);
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.3px;
+}
+.tl-card-count { color: var(--accent); font-weight: 600; }
+.tl-card-owners { margin-left: auto; display: flex; gap: 6px; }
+.tl-card-owner {
+  font-size: 9.5px; padding: 1px 7px; border-radius: 8px;
+  background: rgba(74,124,89,0.12); color: #4A7C59;
+}
+.tl-rows { padding: 2px 0; }
+.tl-row {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  column-gap: 14px; padding: 7px 14px;
+  cursor: pointer; transition: background 0.15s;
+  align-items: baseline;
+  border-bottom: 1px solid rgba(125,118,102,0.08);
+}
+.tl-row:last-child { border-bottom: none; }
+.tl-row:hover { background: var(--accent-glow); }
+.tl-time {
+  font-size: 11px; color: var(--text-light);
+  font-family: 'Share Tech Mono', monospace;
+  text-align: right; line-height: 1.4;
+}
+.tl-title {
+  font-family: 'Noto Serif SC', 'Cormorant Garamond', Georgia, serif;
+  font-size: 14px; font-weight: 600; color: var(--text);
+  line-height: 1.4; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; min-width: 0; letter-spacing: 0.02em;
+}
+.tl-badges { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+.tl-badge {
+  font-size: 9px; padding: 1px 5px; border-radius: 8px;
+  font-weight: 500; letter-spacing: 0.3px;
+}
+.tl-badge.pinned { background: rgba(184,92,60,0.15); color: #B85C3C; }
+.tl-badge.protected { background: rgba(192,144,64,0.15); color: #C09040; }
+.tl-badge.important { background: rgba(154,123,79,0.15); color: #9A7B4F; }
+.tl-badge.feel { background: rgba(139,106,139,0.15); color: #8B6A8B; }
+.tl-badge.type { background: rgba(47,79,79,0.1); color: var(--accent); }
+.tl-badge.owner {
+  background: rgba(74,124,89,0.12); color: #4A7C59;
+  font-family: 'Share Tech Mono', monospace;
+}
+.tl-empty {
+  text-align: center; padding: 60px 20px; color: var(--text-light);
+  font-size: 14px; font-style: italic;
+}

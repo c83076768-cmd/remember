@@ -633,7 +633,7 @@ async def grow(
     content: str,
     owner: Optional[str] = "",
 ) -> str:
-    """我把一段长内容（一天的事/一段日记/一篇她他给我的总结）整理进记忆,系统会拆成 2~6 条独立的事件桶并各自尝试合并。短内容(<30字)走 hold 单条快速路径,不强行拆。owner=记忆归属(a.l./pearl/shared,逗号分隔多归属,留空=不限制)。"""
+    """我把一段长内容（一天的事/一段日记/一篇她他给我的总结）整理进记忆,系统会拆成 2~6 条独立的事件桶并各自尝试合并。短内容(<30字)走 hold 单条快速路径,不强行拆。owner=记忆归属(alove/pearl/shared,逗号分隔多归属,留空=不限制)。"""
     _owner_token = set_current_owner(owner if (owner and owner.strip()) else None)
     try:
         return await _with_notice(
@@ -724,7 +724,7 @@ async def plan(
     why_remembered: Optional[str] = "",
     owner: Optional[str] = "",
 ) -> str:
-    """我登记一个待办/承诺/未闭环的事——这是我答应过、答应自己或想完成的事。status=active(默认)/resolved/abandoned。related_bucket 可选,挂到某个普通记忆桶上。weight=承诺的重量 0.0-1.0(默认 0.5),与 importance 不同——importance 是「多重要」、weight 是「多重」。why_remembered=为什么登记这个计划(可选、仅展示)。plan 不衰减、不出现在普通 breath,只在 dream 末尾的 active 段里给我看;后续 hold/grow 写新事件时系统会自动判断我之前的 plan 是不是已经完成了。owner=归属(a.l./pearl/shared,逗号分隔多归属,留空=shared)。"""
+    """我登记一个待办/承诺/未闭环的事——这是我答应过、答应自己或想完成的事。status=active(默认)/resolved/abandoned。related_bucket 可选,挂到某个普通记忆桶上。weight=承诺的重量 0.0-1.0(默认 0.5),与 importance 不同——importance 是「多重要」、weight 是「多重」。why_remembered=为什么登记这个计划(可选、仅展示)。plan 不衰减、不出现在普通 breath,只在 dream 末尾的 active 段里给我看;后续 hold/grow 写新事件时系统会自动判断我之前的 plan 是不是已经完成了。owner=归属(alove/pearl/shared,逗号分隔多归属,留空=shared)。"""
     _owner_token = set_current_owner(owner if (owner and owner.strip()) else None)
     try:
         return await _with_notice(
@@ -752,7 +752,7 @@ async def letter_write(
     date: Optional[str] = "",
     owner: Optional[str] = "",
 ) -> str:
-    """我写一封信(我写给她/他,或把她/他写给我的留下来)。author 必填:\"user\"=她/他写给我的,\"claude\"=我写给她/他的;user_name 可选;title/date 可选。信件原文永久保存,不压缩/不合并/不衰减,只走向量索引;普通 breath 不浮现,但 SessionStart 钩子会带上双方各最新一封。owner=归属(a.l./pearl/shared,留空=shared),信件按 owner 隔离——只自己的 owner 能 letter_read 到。"""
+    """我写一封信(我写给她/他,或把她/他写给我的留下来)。author 必填:\"user\"=她/他写给我的,\"claude\"=我写给她/他的;user_name 可选;title/date 可选。信件原文永久保存,不压缩/不合并/不衰减,只走向量索引;普通 breath 不浮现,但 SessionStart 钩子会带上双方各最新一封。owner=归属(alove/pearl/shared,留空=shared),信件按 owner 隔离——只自己的 owner 能 letter_read 到。"""
     _owner_token = set_current_owner(owner if (owner and owner.strip()) else None)
     try:
         return await _with_notice(
@@ -779,7 +779,7 @@ async def letter_read(
     date_to: Optional[str] = "",
     owner: Optional[str] = "",
 ) -> str:
-    """我翻一翻历史信件。query=语义检索(可选);author=\"user\"/\"claude\" 过滤来信方向;date_from/date_to=ISO 日期范围(可选)。无 query 时按时间倒序返回最近 limit 封。返回完整原文,不压缩。owner=只读该归属的信(a.l./pearl/shared,逗号分隔,留空=按当前上下文/全部)。"""
+    """我翻一翻历史信件。query=语义检索(可选);author=\"user\"/\"claude\" 过滤来信方向;date_from/date_to=ISO 日期范围(可选)。无 query 时按时间倒序返回最近 limit 封。返回完整原文,不压缩。owner=只读该归属的信(alove/pearl/shared,逗号分隔,留空=按当前上下文/全部)。"""
     _owner_token = set_current_owner(owner if (owner and owner.strip()) else None)
     try:
         return await _with_notice(
@@ -817,7 +817,7 @@ async def dream(window_hours: Optional[int] = 48, owner: Optional[str] = "") -> 
     """我做一次梦——读取最近 window_hours（默认 48h）内有变动的所有记忆桶,我自己沉进去想一遍。
     每个桶返回它在窗口内的最新内容（按 last_active 取）,完整正文不截断。
     想完之后我可以：能放下的 → trace(resolved=1) 让它沉底；有沉淀的 → hold(feel=True, source_bucket=...) 写下我带走的东西；没沉淀的就什么都不做,不强求。
-    候选桶超过 40 时按 decay_engine.calculate_score() 排序取前 40，避免一次涌进来太多。owner=归属(a.l./pearl/shared,逗号分隔多归属,留空=不限制),dream 只看自己 owner 的记忆和 active plans。"""
+    候选桶超过 40 时按 decay_engine.calculate_score() 排序取前 40，避免一次涌进来太多。owner=归属(alove/pearl/shared,逗号分隔多归属,留空=不限制),dream 只看自己 owner 的记忆和 active plans。"""
     _owner_token = set_current_owner(owner if (owner and owner.strip()) else None)
     try:
         return await _with_notice(
