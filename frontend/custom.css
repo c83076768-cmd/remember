@@ -201,12 +201,6 @@
 .bucket-owner-row .domain-owner-btn {
   padding: 4px 13px; font-size: 11px; border-radius: 14px;
 }
-/* 桶卡片中的 owner 小圆点 */
-.bucket-owner-dot {
-  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-  margin-right: 5px; vertical-align: middle; flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
-}
 /* 窄屏：buckets 筛选按钮缩小 */
 @media (max-width: 560px) {
   .bucket-filters-row { gap: 4px; }

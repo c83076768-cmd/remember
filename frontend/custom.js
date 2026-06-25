@@ -547,31 +547,7 @@ function restructureBucketFilters() {
   };
 })();
 
-// --- Monkey-patch renderBuckets: 桶卡片追加 owner 小标签 ---
-(function() {
-  var _orig = window.renderBuckets;
-  if (typeof _orig !== 'function') return;
-  window.renderBuckets = function(buckets) {
-    _orig.apply(this, arguments);
-    var list = document.getElementById('bucket-list');
-    if (!list) return;
-    // 构建 id→owner 映射
-    var ownerMap = {};
-    (allBuckets || []).forEach(function(b) { ownerMap[b.id] = b.owner || 'shared'; });
-    list.querySelectorAll('.bucket-row').forEach(function(row) {
-      var id = row.getAttribute('data-id');
-      var owner = ownerMap[id];
-      if (!owner || row.querySelector('.bucket-owner-dot')) return;
-      var tagsEl = row.querySelector('.bucket-row-tags');
-      if (!tagsEl) return;
-      var dot = document.createElement('span');
-      dot.className = 'bucket-owner-dot';
-      dot.style.background = domainOwnerColor(owner);
-      dot.title = domainOwnerLabel(owner);
-      tagsEl.insertBefore(dot, tagsEl.firstChild);
-    });
-  };
-})();
+// --- Monkey-patch renderBuckets: 已移除 owner 徽章（用户要求） ---
 
 // 页面加载完成后自动加载 reranker 配置
 document.addEventListener('DOMContentLoaded', function() {
