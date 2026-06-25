@@ -562,13 +562,13 @@ function restructureBucketFilters() {
       var id = row.getAttribute('data-id');
       var owner = ownerMap[id];
       if (!owner || row.querySelector('.bucket-owner-dot')) return;
-      var top = row.querySelector('.bucket-row-top');
-      if (!top) return;
+      var tagsEl = row.querySelector('.bucket-row-tags');
+      if (!tagsEl) return;
       var dot = document.createElement('span');
       dot.className = 'bucket-owner-dot';
       dot.style.background = domainOwnerColor(owner);
       dot.title = domainOwnerLabel(owner);
-      top.insertBefore(dot, top.firstChild);
+      tagsEl.insertBefore(dot, tagsEl.firstChild);
     });
   };
 })();
