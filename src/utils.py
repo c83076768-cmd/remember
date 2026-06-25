@@ -55,6 +55,15 @@ _LOG_FALLBACK_DIR = "/tmp/ombre_logs"  # 所有候选路径都失败时的最终
 # sanitize_name() 桶名最大长度（防止文件名过长导致 OS 报错）。
 _BUCKET_NAME_MAX_LEN = 80
 
+# 进程启动那一刻就被「真实 OS / 平台」注入的 OMBRE_* 环境变量名集合（值非空才算）。
+# 在任何 dashboard 保存动作 mutate os.environ 之前快照——这是「平台级 env」与
+# 「运行时被 dashboard 写进 os.environ 的值」唯一可靠的区分依据。
+# 用途：dashboard 据此提示「这些字段由平台环境变量提供，重启会覆盖你这里保存的值」，
+# 修复「config.yaml 存了 Gemini，但平台 OMBRE_COMPRESS_BASE_URL=DeepSeek 每次重启盖回」的坑。
+BOOT_ENV_OMBRE: frozenset[str] = frozenset(
+    k for k, v in os.environ.items() if k.startswith("OMBRE_") and str(v).strip()
+)
+
 
 def _project_root() -> str:
     """Return absolute path to the project root (parent of src/ where utils.py lives).
@@ -73,7 +82,7 @@ def config_file_path() -> str:
 
     为什么独立成函数：load_config 读、Dashboard（config_api/buckets/github/
     embedding）写、entrypoint 初始化——以前各处都硬编码 <repo_root>/config.yaml。
-    一旦把 config 挂进数据目录（修 Docker 单文件 bind mount 在 Windows 被建成
+    一旦把 config 挪进数据目录（修 Docker 单文件 bind mount 在 Windows 被建成
     目录、容器崩溃重启的坑），读和写就会分叉到不同路径、Dashboard 存的 key 重启即丢。
     统一到这里，OMBRE_CONFIG_PATH 一处生效、读写永远同一个文件。"""
     env_cfg = os.environ.get("OMBRE_CONFIG_PATH", "").strip()

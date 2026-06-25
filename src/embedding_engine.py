@@ -346,7 +346,16 @@ class EmbeddingEngine:
                 (embed_cfg.get("base_url") or "").strip()
                 or "https://generativelanguage.googleapis.com/v1beta/openai/"
             )
-            self._backend = APIEmbeddingEngine(api_key=api_key, base_url=base_url, model=model)
+            # 读 dim 并透传，否则任何非 768 维的 OpenAI 兼容模型（如硅基流动 BAAI/bge-m3=1024）
+            # 都会被 APIEmbeddingEngine 的默认 768 钉死 → 启动时 db(dim=1024) vs current(dim=768)
+            # 报 OB-W005、逼用户去 migrate（即便 config.yaml 已写 embedding.dim: 1024）。
+            # fallback 用 _GEMINI_DEFAULT_DIM（768）而非 1024：本分支默认端点/模型就是 Gemini，
+            # 没显式配 dim 时必须保持 768，否则反过来把默认 Gemini 路径打错。
+            try:
+                dim = int(embed_cfg.get("dim") or _GEMINI_DEFAULT_DIM)
+            except (TypeError, ValueError):
+                dim = _GEMINI_DEFAULT_DIM
+            self._backend = APIEmbeddingEngine(api_key=api_key, base_url=base_url, model=model, dim=dim)
 
         self.model = self._backend.model_name()
         self.enabled = True

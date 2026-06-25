@@ -51,12 +51,17 @@ def register(mcp) -> None:
         if err:
             return err
 
+        # 启动期被平台注入的 OMBRE_* 集合（在任何 dashboard 保存 mutate os.environ 之前快照）。
+        # from_boot=True ⇒ 该变量是平台级 env，重启后会覆盖 dashboard 存进 config.yaml 的值。
+        from utils import BOOT_ENV_OMBRE
+
         def _masked(name: str) -> dict:
-            return {"set": bool(os.environ.get(name, "").strip()), "value": None}
+            return {"set": bool(os.environ.get(name, "").strip()), "value": None,
+                    "from_boot": name in BOOT_ENV_OMBRE}
 
         def _plain(name: str) -> dict:
             v = os.environ.get(name, "").strip()
-            return {"set": bool(v), "value": v or None}
+            return {"set": bool(v), "value": v or None, "from_boot": name in BOOT_ENV_OMBRE}
 
         vars_data = [
             # LLM 压缩组
@@ -470,18 +475,12 @@ def register(mcp) -> None:
         # Webhook
         "OMBRE_HOOK_URL":          {"group": "webhook",  "sensitive": False, "in_memory": None},
         "OMBRE_HOOK_SKIP":         {"group": "webhook",  "sensitive": False, "in_memory": None},
-        # 插件：Reranker（非 upstream）
-        "OMBRE_RERANKER_API_KEY":  {"group": "reranker", "sensitive": True,  "in_memory": ("reranker", "api_key")},
-        "OMBRE_RERANKER_BASE_URL": {"group": "reranker", "sensitive": False, "in_memory": ("reranker", "base_url")},
-        "OMBRE_RERANKER_MODEL":    {"group": "reranker", "sensitive": False, "in_memory": ("reranker", "model")},
-        "OMBRE_RERANKER_ENABLED":  {"group": "reranker", "sensitive": False, "in_memory": ("reranker", "enabled")},
     }
 
     _ENV_CONFIG_NOTE = {
         "compress": "改完即时生效（进程内 sh.config 已更新），同时写 config.yaml 持久化（重启后仍有效）。",
         "embed": "API key / base_url / model 立即更新进程内 config；backend 切换请用「切换 / 重算所有 embedding…」按钮。",
         "webhook": "改完下次 breath/dream 触发时即生效，无需重启。",
-        "reranker": "改完即时生效并热重建 reranker_engine；留空时自动复用 embedding 的 key/base_url。",
     }
 
 
@@ -661,21 +660,6 @@ def register(mcp) -> None:
                             pass
                 except Exception:
                     pass
-
-            # 7. 插件：Reranker 配置变更 → 热重建 reranker_engine（非 upstream）
-            if var in ("OMBRE_RERANKER_API_KEY", "OMBRE_RERANKER_BASE_URL", "OMBRE_RERANKER_MODEL", "OMBRE_RERANKER_ENABLED"):
-                try:
-                    from reranker_engine import RerankerEngine as _RR_hot
-                    new_rr = _RR_hot(sh.config)
-                    sh.reranker_engine = new_rr  # type: ignore[attr-defined]
-                    # 同步注入到 tools._runtime
-                    try:
-                        import tools._runtime as _rt_hot
-                        _rt_hot.reranker_engine = new_rr
-                    except Exception:
-                        pass
-                except Exception as _rr_e:
-                    sh.logger.warning(f"[reranker] hot-reload failed: {_rr_e}")
 
             written.append(var)
 
