@@ -1,0 +1,7 @@
+sync upstream v2.3.17: OAuth 副连接器严格匹配修复
+
+- /.well-known/oauth-protected-resource 支持 /{resource_path:path}，resource 按请求路径动态返回
+- 401 中间件 resource_metadata 指向本次请求 endpoint 对应的 metadata（RFC 9728），
+  副连接器 /mcp-extra 不再被指回根域名而严格匹配失败
+- bump 2.3.16 -> 2.3.17
+- 自定义功能（reranker / owner 隔离 / domain timeline）保留

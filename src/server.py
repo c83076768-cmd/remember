@@ -979,13 +979,18 @@ if __name__ == "__main__":
                             proto = headers.get(b"x-forwarded-proto", b"").decode() or scope.get("scheme", "http")
                             host = (headers.get(b"x-forwarded-host") or headers.get(b"host", b"")).decode()
                             base = f"{proto}://{host}"
+                            # 让 resource_metadata 指向「本次请求 endpoint」对应的 metadata，
+                            # 使 metadata.resource 与实际连接的 /mcp 或 /mcp-extra 严格匹配
+                            # （RFC 9728）。否则副连接器会被指回根 metadata 而匹配失败。
+                            endpoint = path.strip("/")
+                            meta_url = f"{base}/.well-known/oauth-protected-resource/{endpoint}"
                             ww_auth = (
                                 f'Bearer realm="Ombre Brain",'
-                                f' resource_metadata="{base}/.well-known/oauth-protected-resource"'
+                                f' resource_metadata="{meta_url}"'
                             )
                             body = _json_mw.dumps({
                                 "error": "Unauthorized",
-                                "resource_metadata": f"{base}/.well-known/oauth-protected-resource",
+                                "resource_metadata": meta_url,
                             }).encode()
                             await send({"type": "http.response.start", "status": 401, "headers": [
                                 [b"content-type", b"application/json"],

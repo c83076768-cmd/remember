@@ -148,11 +148,16 @@ def register(mcp) -> None:
     _load_mcp_tokens()   # 启动时恢复持久化 token，Docker 重启不再强制重新 OAuth
 
     @mcp.custom_route("/.well-known/oauth-protected-resource", methods=["GET"])
+    @mcp.custom_route("/.well-known/oauth-protected-resource/{resource_path:path}", methods=["GET"])
     async def oauth_protected_resource(request: Request) -> Response:
         from starlette.responses import JSONResponse
         base = _public_base_url(request)
+        # 带路径时（如 /mcp-extra）按请求路径动态返回对应 resource，
+        # 以便 Claude.ai 的严格 resource 匹配通过；无路径时返回根资源。
+        sub = request.path_params.get("resource_path", "")
+        resource = f"{base}/{sub}" if sub else base
         return JSONResponse({
-            "resource": base,
+            "resource": resource,
             "authorization_servers": [base],
             "bearer_methods_supported": ["header"],
         })
