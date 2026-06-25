@@ -555,7 +555,6 @@ function restructureBucketFilters() {
     _orig.apply(this, arguments);
     var list = document.getElementById('bucket-list');
     if (!list) return;
-    // 构建 id→owner 映射
     var ownerMap = {};
     (allBuckets || []).forEach(function(b) { ownerMap[b.id] = b.owner || 'shared'; });
     list.querySelectorAll('.bucket-row').forEach(function(row) {
@@ -564,13 +563,17 @@ function restructureBucketFilters() {
       if (!owner || row.querySelector('.bucket-owner-tag')) return;
       var top = row.querySelector('.bucket-row-top');
       if (!top) return;
+      var iconSpan = top.querySelector('.icon');
       var tag = document.createElement('span');
       tag.className = 'bucket-owner-tag';
       tag.style.background = domainOwnerColor(owner);
       tag.textContent = domainOwnerLabel(owner);
-      var tagsEl = top.querySelector('.bucket-row-tags');
-      if (tagsEl) top.insertBefore(tag, tagsEl);
-      else top.appendChild(tag);
+      if (iconSpan) {
+        iconSpan.parentNode.insertBefore(tag, iconSpan.nextSibling);
+      } else {
+        // fallback: 放到最前面
+        top.insertBefore(tag, top.firstChild);
+      }
     });
   };
 })();

@@ -191,9 +191,29 @@
 .bucket-owner-row .domain-owner-btn {
   padding: 4px 13px; font-size: 11px; border-radius: 14px;
 }
-/* 桶卡片中的 owner 小标签 */
+/* 桶卡片中的 owner 小标签 — 最左侧，图标下方 */
 .bucket-owner-tag {
-  display: inline-block; padding: 1px 6px; margin-right: 4px;
-  border-radius: 8px; font-size: 9px; color: #fffdf5;
-  font-family: 'Share Tech Mono', monospace; vertical-align: middle;
+  display: inline-block; padding: 1px 5px; margin: 0 6px 0 0;
+  border-radius: 6px; font-size: 8px; color: #fffdf5; line-height: 1.4;
+  font-family: 'Share Tech Mono', monospace; vertical-align: top;
+  flex-shrink: 0; white-space: nowrap;
+}
+
+/* ── 手机端适配 ── */
+@media (max-width: 520px) {
+  /* 域界面：owner 行允许换行，统计换到下一行 */
+  .domain-owner-row {
+    flex-wrap: wrap !important;
+  }
+  .domain-stats {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+  /* 域界面：filter 按钮组允许换行 */
+  .domain-controls {
+    flex-wrap: wrap;
+  }
+  .domain-controls .filter-btn {
+    padding: 4px 10px; font-size: 10px;
+  }
 }
