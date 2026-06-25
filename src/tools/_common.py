@@ -32,6 +32,7 @@ import asyncio
 import hashlib
 
 from . import _runtime as rt
+from owner_filter import filter_buckets_by_context_owner
 
 _EMBED_WARN = (
     "向量化失败，该桶不参与语义检索，仅支持关键词匹配。请检查 OMBRE_EMBED_API_KEY。"
@@ -525,6 +526,9 @@ async def check_plan_resolution(new_event_text: str, source_bucket_id: str = "")
     """fire-and-forget：扫描 active plan，向量相似 > 0.7 的让 LLM 保守判断是否完成。"""
     try:
         all_b = await rt.bucket_mgr.list_all(include_archive=False)
+        # 按 owner 过滤：新事件只匹配同 owner 的 active plan，
+        # 不会把 Pearl 的事件误判为完成 A爱 的计划（上下文由 hold/grow 传入）
+        all_b = filter_buckets_by_context_owner(all_b)
         active_plans = [
             b for b in all_b
             if b["metadata"].get("type") == "plan"

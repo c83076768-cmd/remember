@@ -21,6 +21,7 @@ from .. import _runtime as rt
 from .candidates import collect_candidates
 from .hints import build_connection_hint, build_crystal_hint
 from .output import format_dream_output
+from owner_filter import filter_buckets_by_context_owner
 
 
 async def dispatch(window_hours: Optional[int] = 48) -> str:
@@ -31,6 +32,9 @@ async def dispatch(window_hours: Optional[int] = 48) -> str:
     except Exception as e:
         rt.logger.error(f"Dream failed to list buckets: {e}")
         return "记忆系统暂时无法访问。"
+    # 按 owner 过滤：dream 只看自己 owner 的记忆/计划/feel，
+    # A爱 做梦不会混进 Pearl 的记忆和计划（上下文由 server.py dream 入口设置）
+    all_buckets = filter_buckets_by_context_owner(all_buckets)
 
     window_hours = max(1, min(int(window_hours or 48), 24 * 14))
     recent = collect_candidates(all_buckets, window_hours)

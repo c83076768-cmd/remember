@@ -2195,9 +2195,15 @@
   <div style="max-width:920px;margin:0 auto;">
     <div class="config-section">
       <h3>计划 / Plans <span style="font-size:11px;color:var(--text-light);font-style:italic;font-family:'Cormorant Garamond',serif;">— what I promised, what I'm carrying</span></h3>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;">
         <button class="btn-secondary" onclick="loadPlans()" title="刷新" style="padding:6px 10px;font-size:12px;"><i data-lucide="refresh-cw"></i></button>
         <span id="plan-stats" style="font-size:12px;color:var(--text-dim);"></span>
+        <div class="domain-owner-group" style="display:flex;gap:6px;align-items:center;margin-left:8px;">
+          <button class="domain-owner-btn active" data-plan-owner="" onclick="setPlanOwnerFilter('')">全部</button>
+          <button class="domain-owner-btn" data-plan-owner="a.l." onclick="setPlanOwnerFilter('a.l.')">A爱</button>
+          <button class="domain-owner-btn" data-plan-owner="pearl" onclick="setPlanOwnerFilter('pearl')">Pearl</button>
+          <button class="domain-owner-btn" data-plan-owner="shared" onclick="setPlanOwnerFilter('shared')">共享</button>
+        </div>
         <span style="margin-left:auto;font-size:11px;color:var(--text-light);display:inline-flex;align-items:center;gap:4px;"><svg class="icon icon-ok" aria-hidden="true"><use href="#i-check"></use></svg> 完成 / <svg class="icon icon-err" aria-hidden="true"><use href="#i-x"></use></svg> 放弃 / <svg class="icon" aria-hidden="true" style="transform:scaleX(-1)"><use href="#i-clock"></use></svg> 重新激活</span>
       </div>
       <div id="plan-board" style="display:flex;flex-direction:column;gap:24px;">
@@ -2231,6 +2237,15 @@
         <input type="date" id="letter-date" style="flex:0 0 180px;" />
       </div>
       <div class="config-row">
+        <label>归属</label>
+        <select id="letter-owner" style="flex:0 0 160px;">
+          <option value="">shared（共享）</option>
+          <option value="a.l.">a.l.（A爱）</option>
+          <option value="pearl">pearl（Pearl）</option>
+        </select>
+        <span style="font-size:11px;color:var(--text-dim);">信件归属哪个 AI，按 owner 隔离——只有同 owner 的 AI 能 letter_read 到。</span>
+      </div>
+      <div class="config-row">
         <label>标题</label>
         <input type="text" id="letter-title" placeholder="标题（可选）" />
       </div>
@@ -2246,13 +2261,19 @@
 
     <div class="config-section">
       <h3>信件时间线</h3>
-      <div class="config-row">
+      <div class="config-row" style="flex-wrap:wrap;gap:10px;">
         <label>筛选</label>
-        <select id="letter-filter" onchange="loadLetters()" style="flex:0 0 200px;">
-          <option value="">全部</option>
+        <select id="letter-filter" onchange="loadLetters()" style="flex:0 0 140px;">
+          <option value="">全部方向</option>
           <option value="user">仅 YOU</option>
           <option value="claude">仅 AI</option>
         </select>
+        <div class="domain-owner-group" style="display:flex;gap:6px;align-items:center;">
+          <button class="domain-owner-btn active" data-letter-owner="" onclick="setLetterOwnerFilter('')">全部</button>
+          <button class="domain-owner-btn" data-letter-owner="a.l." onclick="setLetterOwnerFilter('a.l.')">A爱</button>
+          <button class="domain-owner-btn" data-letter-owner="pearl" onclick="setLetterOwnerFilter('pearl')">Pearl</button>
+          <button class="domain-owner-btn" data-letter-owner="shared" onclick="setLetterOwnerFilter('shared')">共享</button>
+        </div>
         <button class="btn-secondary" onclick="loadLetters()" title="刷新" style="padding:8px 14px;font-size:12px;"><i data-lucide="refresh-cw"></i></button>
         <span id="letter-count" style="font-size:11px;color:var(--text-dim);margin-left:auto;"></span>
       </div>
@@ -4374,6 +4395,13 @@ function domainOwnerColor(owner) {
   if (owner === 'a.l.') return '#8B4A6A';
   if (owner === 'pearl') return '#4A6C8B';
   return '#4A7C59';
+}
+// 生成 owner 彩色小标签（plan / letter 卡片共用）
+function _ownerTagHtml(owner) {
+  if (!owner) owner = 'shared';
+  var label = domainOwnerLabel(owner);
+  var color = domainOwnerColor(owner);
+  return '<span style="display:inline-block;padding:1px 6px;margin-right:6px;border-radius:8px;font-size:10px;color:#fffdf5;background:' + color + ';vertical-align:middle;">' + esc(label) + '</span>';
 }
 
 // 去掉标题中的时间戳前缀（如 "2026-06-25 18-42-55 雨中散步" → "雨中散步"）
@@ -6589,13 +6617,14 @@ function _planCard(p) {
     actions = '<button class="icon-btn" title="重新激活" onclick="planAction(\'' + p.id + '\',\'reopen\')"><i data-lucide="rotate-ccw"></i> 重新激活</button>';
   }
   actions += ' <button class="icon-btn" title="编辑内容" onclick="planEdit(\'' + p.id + '\')"><i data-lucide="pencil"></i> 编辑</button>';
+  var ownerTag = _ownerTagHtml(p.owner);
   return '<div class="plan-card" data-id="' + p.id + '" style="border:1px solid var(--border);border-radius:4px;padding:14px 16px;background:var(--surface-solid);">' +
     '<div style="display:flex;align-items:flex-start;gap:10px;">' +
       '<div style="flex:1;">' +
         '<div style="font-weight:500;color:var(--text);margin-bottom:4px;">' + name + '</div>' +
         '<div style="font-size:13px;color:var(--text-dim);line-height:1.7;white-space:pre-wrap;">' + content + '</div>' +
         weightHtml +
-        '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">创建于 ' + created + ' · id <code>' + esc(p.id) + '</code></div>' +
+        '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">' + ownerTag + '创建于 ' + created + ' · id <code>' + esc(p.id) + '</code></div>' +
         historyHtml +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">' + actions + '</div>' +
@@ -6603,12 +6632,22 @@ function _planCard(p) {
   '</div>';
 }
 
+var _planOwnerFilter = '';
+function setPlanOwnerFilter(owner) {
+  _planOwnerFilter = owner || '';
+  document.querySelectorAll('[data-plan-owner]').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-plan-owner') === _planOwnerFilter);
+  });
+  loadPlans();
+}
+
 async function loadPlans() {
   const board = document.getElementById('plan-board');
   const stats = document.getElementById('plan-stats');
   board.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:24px 0;font-size:13px;">加载中…</div>';
   try {
-    const resp = await authFetch('/api/plans');
+    var url = '/api/plans' + (_planOwnerFilter ? ('?owner=' + encodeURIComponent(_planOwnerFilter)) : '');
+    const resp = await authFetch(url);
     if (!resp) return;
     const d = await resp.json();
     if (d.error) { board.innerHTML = '<div style="color:var(--negative)">' + esc(d.error) + '</div>'; return; }
@@ -7528,13 +7567,25 @@ async function releaseAnchor(bucketId) {
   loadAnchorsView();
 }
 
+var _letterOwnerFilter = '';
+function setLetterOwnerFilter(owner) {
+  _letterOwnerFilter = owner || '';
+  document.querySelectorAll('[data-letter-owner]').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-letter-owner') === _letterOwnerFilter);
+  });
+  loadLetters();
+}
+
 async function loadLetters() {
   const filter = document.getElementById('letter-filter').value;
   const list = document.getElementById('letters-list');
   const cnt = document.getElementById('letter-count');
   list.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:24px;">加载中…</div>';
   try {
-    const url = BASE + '/api/letters' + (filter ? '?author=' + filter : '');
+    var qs = [];
+    if (filter) qs.push('author=' + encodeURIComponent(filter));
+    if (_letterOwnerFilter) qs.push('owner=' + encodeURIComponent(_letterOwnerFilter));
+    const url = BASE + '/api/letters' + (qs.length ? ('?' + qs.join('&')) : '');
     const r = await fetch(url);
     const d = await r.json();
     _lettersCache = d.letters || [];
@@ -7553,8 +7604,8 @@ function _renderLetter(l) {
   const who = l.author === 'user' ? (l.user_name || 'user') : 'claude';
   const accentColor = l.author === 'claude' ? 'var(--accent)' : 'var(--text-dim)';
   return `<article style="background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:18px 22px;box-shadow:4px 4px 10px var(--shadow-dark-subtle), -4px -4px 10px var(--shadow-light);" data-id="${l.id}">
-    <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.15em;display:flex;justify-content:space-between;margin-bottom:8px;">
-      <span style="color:${accentColor};font-weight:600;">${esc(who)}</span><span>${esc(l.date || '')}</span>
+    <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.15em;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+      <span style="color:${accentColor};font-weight:600;">${esc(who)}</span><span>${_ownerTagHtml(l.owner)}${esc(l.date || '')}</span>
     </div>
     ${l.title ? `<div style="font-family:'Cormorant Garamond', serif;font-size:17px;font-weight:600;margin-bottom:8px;color:var(--text);">${esc(l.title)}</div>` : ''}
     <div style="white-space:pre-wrap;font-size:14px;line-height:1.75;color:var(--text);">${esc(l.content || '')}</div>
@@ -7575,6 +7626,7 @@ async function sendLetter() {
     title: document.getElementById('letter-title').value,
     date: document.getElementById('letter-date').value,
     content: document.getElementById('letter-content').value,
+    owner: document.getElementById('letter-owner').value,
   };
   if (!body.content.trim()) {
     status.style.color = 'var(--negative)'; status.textContent = '内容为空';

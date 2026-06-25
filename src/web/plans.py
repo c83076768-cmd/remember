@@ -15,6 +15,11 @@ from starlette.responses import Response
 
 from . import _shared as sh
 
+try:
+    from owner_filter import parse_owner_param, bucket_matches_owner, get_bucket_owner  # type: ignore
+except ImportError:  # pragma: no cover
+    from ..owner_filter import parse_owner_param, bucket_matches_owner, get_bucket_owner  # type: ignore
+
 logger = sh.logger
 
 
@@ -36,6 +41,8 @@ def register(mcp) -> None:
         if err:
             return err
         try:
+            # ?owner= 过滤：Dashboard 默认返回全部（留空），传 owner 只看该归属
+            owner_set = parse_owner_param(request.query_params.get("owner", ""))
             all_buckets = await sh.bucket_mgr.list_all(include_archive=False)
             # 三个空桶子，后面按 status 往里填
             # 类型标注 dict[str, list] 是 Python 3.9+ 语法，不要变运行 IDE 报错
@@ -44,6 +51,9 @@ def register(mcp) -> None:
                 meta = b.get("metadata", {})
                 # 过滤：只要计划类，跳过其他类型的桶
                 if meta.get("type") != "plan":
+                    continue
+                # 按 owner 过滤
+                if not bucket_matches_owner(meta, owner_set):
                     continue
                 # status 不一定存在（老数据），默认 active；lower() 防御大小写
                 st = (meta.get("status") or "active").lower()
@@ -64,6 +74,7 @@ def register(mcp) -> None:
                     # iter 1.8: 承诺重量与「为什么」
                     "weight": float(meta.get("weight", 0.5)) if meta.get("weight") is not None else 0.5,
                     "why_remembered": meta.get("why_remembered", ""),
+                    "owner": get_bucket_owner(meta),
                 })
             # 每组按 updated_at 倒序。lambda 是匿名函数；key 函数指定「拿什么排序」
             # `or .. or ""` 堆叠保底：缺字段也不会报 NoneType < str 错

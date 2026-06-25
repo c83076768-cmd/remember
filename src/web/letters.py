@@ -22,6 +22,11 @@ try:
 except ImportError:  # pragma: no cover
     from ..utils import strip_wikilinks  # type: ignore
 
+try:
+    from owner_filter import parse_owner_param, bucket_matches_owner, get_bucket_owner, apply_owner_to_meta  # type: ignore
+except ImportError:  # pragma: no cover
+    from ..owner_filter import parse_owner_param, bucket_matches_owner, get_bucket_owner, apply_owner_to_meta  # type: ignore
+
 
 def register(mcp) -> None:
 
@@ -33,9 +38,13 @@ def register(mcp) -> None:
         if err:
             return err
         author = request.query_params.get("author", "").strip().lower()
+        # ?owner= 过滤：Dashboard 默认返回全部（留空），传 owner 只看该归属
+        owner_set = parse_owner_param(request.query_params.get("owner", ""))
         try:
             all_b = await sh.bucket_mgr.list_all(include_archive=False)
             letters = [b for b in all_b if b["metadata"].get("type") == "letter"]
+            if owner_set:
+                letters = [b for b in letters if bucket_matches_owner(b["metadata"], owner_set)]
             if author in ("user", "claude"):
                 letters = [b for b in letters if b["metadata"].get("author") == author]
             letters.sort(
@@ -53,6 +62,7 @@ def register(mcp) -> None:
                     "date": m.get("letter_date") or m.get("created", "")[:10],
                     "created": m.get("created", ""),
                     "content": strip_wikilinks(b.get("content", "")),
+                    "owner": get_bucket_owner(m),
                 })
             return JSONResponse({"letters": result, "total": len(result)})
         except Exception as e:
@@ -79,6 +89,7 @@ def register(mcp) -> None:
         user_name = (body.get("user_name") or "").strip()
         title = (body.get("title") or "").strip()[:120]
         date = (body.get("date") or "").strip()
+        owner = (body.get("owner") or "").strip()
         extra = {"author": author}
         if user_name:
             extra["user_name"] = user_name
@@ -86,6 +97,8 @@ def register(mcp) -> None:
             extra["title"] = title
         if date:
             extra["letter_date"] = date
+        # 写入 owner（留空 = shared）
+        apply_owner_to_meta(extra, owner if owner else None)
         try:
             bid = await sh.bucket_mgr.create(
                 content=content,

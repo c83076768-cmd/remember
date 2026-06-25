@@ -27,6 +27,7 @@ from typing import Optional
 
 from .. import _runtime as rt
 from utils import strip_wikilinks
+from owner_filter import filter_buckets_by_context_owner
 
 
 async def plan_create(
@@ -52,6 +53,9 @@ async def plan_create(
     norm = content.strip()
     try:
         all_buckets = await rt.bucket_mgr.list_all(include_archive=False)
+        # 按 owner 过滤：A爱 建计划只跟自己 owner 的 active plan 去重，
+        # 不误判到 Pearl 的同名 plan 上
+        all_buckets = filter_buckets_by_context_owner(all_buckets)
         for b in all_buckets:
             m = b.get("metadata", {})
             if (
@@ -155,6 +159,8 @@ async def letter_read(
         all_b = await rt.bucket_mgr.list_all(include_archive=False)
     except Exception as e:
         return f"读取信件失败: {e}"
+    # 按 owner 过滤：A爱 只能读到自己 owner 的信件，不会泄露 Pearl 的私信
+    all_b = filter_buckets_by_context_owner(all_b)
     letters = [b for b in all_b if b["metadata"].get("type") == "letter"]
     if author.strip().lower() in ("user", "claude"):
         letters = [b for b in letters if b["metadata"].get("author") == author.strip().lower()]

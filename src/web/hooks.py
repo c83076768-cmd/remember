@@ -26,6 +26,11 @@ try:
 except ImportError:  # pragma: no cover
     from ..utils import strip_wikilinks, count_tokens_approx  # type: ignore
 
+try:
+    from owner_filter import parse_owner_param, bucket_matches_owner  # type: ignore
+except ImportError:  # pragma: no cover
+    from ..owner_filter import parse_owner_param, bucket_matches_owner  # type: ignore
+
 
 def register(mcp) -> None:
 
@@ -33,6 +38,9 @@ def register(mcp) -> None:
     async def breath_hook(request):
         from starlette.responses import PlainTextResponse
         try:
+            # ?owner= 指定该 session 归属的 AI，信件部分只返回该 owner 的信
+            # 不传或留空 = 不过滤（向后兼容，返回所有 owner 的信件）
+            hook_owner_set = parse_owner_param(request.query_params.get("owner", ""))
             all_buckets = await sh.bucket_mgr.list_all(include_archive=False)
             # pinned
             pinned = [b for b in all_buckets if b["metadata"].get("pinned") or b["metadata"].get("protected")]
@@ -78,9 +86,12 @@ def register(mcp) -> None:
             body_text = "[Ombre Brain - 记忆浮现]\n" + "\n---\n".join(parts)
 
             # --- Append latest letter from each side (iter 1.4) ---
-            # --- 附带双方各最新一封 letter ---
+            # --- 附带双方各最新一封 letter（按 ?owner= 隔离）---
             try:
                 letters = [b for b in all_buckets if b["metadata"].get("type") == "letter"]
+                # 按 owner 过滤：A爱 的 session 只带 A爱 的信件，不混入 Pearl 的私信
+                if hook_owner_set:
+                    letters = [b for b in letters if bucket_matches_owner(b["metadata"], hook_owner_set)]
                 if letters:
                     def _latest(author: str) -> dict | None:
                         pool = [letter for letter in letters if letter["metadata"].get("author") == author]

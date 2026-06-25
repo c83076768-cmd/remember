@@ -1,7 +1,7 @@
 # Ombre-Brain Custom 改造日志
 
 > **用途**：记录 custom 分支相对 upstream（`origin/main`）的所有改动，供上游更新时快速审查兼容性。
-> **最后更新**：2026-06-25（基于 v2.3.11）
+> **最后更新**：2026-06-25（基于 v2.3.17）
 > **维护方式**：每次新增 custom 改动或合并上游后，更新对应章节。
 
 ---
@@ -13,8 +13,9 @@
 | Reranker 重排序引擎 | `src/reranker_engine.py`, `src/web/reranker.py` | `server.py`, `tools/_runtime.py`, `tools/breath/search.py`, `web/__init__.py`, `web/_shared.py`, `web/config_api.py`, `frontend/dashboard.html` | 已完成 |
 | 多 AI 记忆隔离 (owner) | `src/owner_filter.py` | `server.py`, `bucket_manager.py`, `tools/breath/search.py`, `tools/breath/feel.py`, `tools/breath/importance.py`, `tools/breath/surface.py` | 已完成 |
 | 域 / Domain 时间线视图 | `seed_mock_data.py`（mock 数据脚本，可选） | `web/buckets.py`, `frontend/dashboard.html` | 已完成 |
+| Plan/Letter owner 隔离 | 无新建 | `server.py`, `tools/plan/core.py`, `tools/_common.py`, `tools/dream/__init__.py`, `web/hooks.py`, `web/plans.py`, `web/letters.py`, `frontend/dashboard.html` | 已完成 |
 
-**总计**：4 个新建文件 + 12 个修改文件。
+**总计**：4 个新建文件 + 20 个修改文件。
 
 ---
 
@@ -225,6 +226,90 @@
 
 ---
 
+## 改造四：Plan / Letter owner 隔离
+
+### 目的
+
+把 plan（计划）和 letter（信件）功能也接入 owner 隔离体系，让 A爱 和 Pearl 各自的计划/信件互不可见。改造前 plan/letter 工具入口完全没接 owner 上下文，存在三个问题：
+1. **写入永远落 shared** — A爱 写的计划/信件全落 `owner=shared`，和 Pearl 的混在一起
+2. **读取跨 owner 泄露** — A爱 调 `letter_read` 能读到 Pearl 的全部私信
+3. **去重跨 owner 误判** — A爱 建计划时，若 Pearl 有相同内容的 active plan，会被误去重到 Pearl 的桶上
+
+### 设计原则
+
+- **owner 和 author 正交**：`author=user/claude` 表示信件方向（原作者设计），`owner=a.l./pearl/shared` 表示归属哪个 AI（我们加的）。例：人类写给 A爱 的信 = `author=user, owner=a.l.`；A爱 写给人类的回信 = `author=claude, owner=a.l.`
+- **工具数量不变**：只在现有 plan/letter_write/letter_read/dream 四个工具的函数签名加 `owner` 可选参数，不新增工具
+- **Dashboard 默认看全部**：`/api/plans` 和 `/api/letters` 默认返回所有 owner 的数据（人类视角），传 `?owner=` 才筛选
+- **MCP 工具默认按 owner 隔离**：AI 调用时传 owner 才隔离，不传走 shared（向后兼容）
+
+### 修改文件
+
+#### 1. `src/server.py`
+
+- **`plan` 工具**：新增 `owner: Optional[str] = ""` 参数 + `set_current_owner`/`reset_current_owner` 包裹
+- **`letter_write` 工具**：同上
+- **`letter_read` 工具**：同上
+- **`dream` 工具**：同上（因为 dream 末尾展示 active plans + feel 历史，需一并隔离）
+
+#### 2. `src/tools/plan/core.py`
+
+- **import**：`from owner_filter import filter_buckets_by_context_owner`
+- **`plan_create` 去重扫描**：`list_all()` 后调用 `filter_buckets_by_context_owner()` 过滤，避免跨 owner 误去重
+- **`letter_read` 读取**：`list_all()` 后调用 `filter_buckets_by_context_owner()` 过滤，A爱 只能读到自己 owner 的信件
+
+#### 3. `src/tools/_common.py`
+
+- **import**：`from owner_filter import filter_buckets_by_context_owner`
+- **`check_plan_resolution`**（auto-resolve 后台扫描）：`list_all()` 后调用 `filter_buckets_by_context_owner()` 过滤，新事件只匹配同 owner 的 active plan
+
+#### 4. `src/tools/dream/__init__.py`
+
+- **import**：`from owner_filter import filter_buckets_by_context_owner`
+- **`dispatch`**：`list_all()` 后调用 `filter_buckets_by_context_owner()` 过滤，dream 只看自己 owner 的记忆/计划/feel
+
+#### 5. `src/web/hooks.py`
+
+- **import**：`parse_owner_param`, `bucket_matches_owner`
+- **`/breath-hook`**：新增 `?owner=` 查询参数，信件部分按 owner 过滤（不传 = 不过滤，向后兼容）
+
+#### 6. `src/web/plans.py`
+
+- **import**：`parse_owner_param`, `bucket_matches_owner`, `get_bucket_owner`
+- **`/api/plans`**：新增 `?owner=` 查询参数（默认返回全部），响应里新增 `owner` 字段
+
+#### 7. `src/web/letters.py`
+
+- **import**：`parse_owner_param`, `bucket_matches_owner`, `get_bucket_owner`, `apply_owner_to_meta`
+- **`/api/letters`**：新增 `?owner=` 查询参数（默认返回全部），响应里新增 `owner` 字段
+- **`/api/letter` POST**：支持 body 里传 `owner` 字段写入信件归属
+
+#### 8. `frontend/dashboard.html`
+
+- **计划面板**：加 全部/A爱/Pearl/共享 筛选按钮 + 卡片显示 owner 彩色标签
+- **信件面板**：加 owner 筛选按钮 + 写信表单加「归属」下拉框 + 信件卡片显示 owner 标签
+- **新增辅助函数**：`_ownerTagHtml(owner)` 生成 owner 彩色小标签（复用 domain timeline 的 `domainOwnerLabel`/`domainOwnerColor`）
+- **新增筛选函数**：`setPlanOwnerFilter()` / `setLetterOwnerFilter()`
+
+### 上游更新时需检查
+
+| 上游改动点 | 检查内容 |
+|-----------|---------|
+| `server.py` 的 `plan`/`letter_write`/`letter_read`/`dream` 函数签名 | 上游是否新增参数导致 owner 参数位置变化；try/finally 结构是否被重构 |
+| `tools/plan/core.py` 的 `plan_create`/`letter_read` | 上游是否重构去重/读取逻辑，导致 `filter_buckets_by_context_owner` 无处插入 |
+| `tools/_common.py` 的 `check_plan_resolution` | 上游是否改 auto-resolve 流程导致过滤丢失 |
+| `tools/dream/__init__.py` 的 `dispatch` | 上游是否改 dream 流程导致过滤丢失 |
+| `web/hooks.py` 的 `/breath-hook` | 上游是否重构信件段导致 owner 过滤丢失 |
+| `web/plans.py` / `web/letters.py` | 上游是否改 API 响应结构导致 `owner` 字段丢失 |
+| `frontend/dashboard.html` | 合并冲突时优先保留 custom 的 owner 筛选按钮和写信表单 owner 下拉框 |
+
+### 降级安全性
+
+- `owner` 参数为空 → `set_current_owner(None)` → `filter_buckets_by_context_owner` 返回原列表 → **行为与 upstream 完全一致**
+- Dashboard API 不传 `?owner=` → `owner_set=None` → `bucket_matches_owner` 返回 True → 返回全部
+- 老数据无 owner 字段 → `get_bucket_owner()` 返回 `shared` → Dashboard「共享」tab 能看到
+
+---
+
 ## 上游更新操作流程
 
 ```bash
@@ -257,6 +342,9 @@ git merge --no-edit origin/main
 
 | 日期 | 上游版本 | 操作 | 说明 |
 |------|---------|------|------|
+| 2026-06-25 | v2.3.17 | 新增改造四 | Plan/Letter owner 隔离：plan/letter_write/letter_read/dream 加 owner 参数 + plan/core.py 去重读取过滤 + _common auto-resolve 过滤 + dream 过滤 + hooks/plans/letters API 加 ?owner= + dashboard 加 owner 筛选 |
+| 2026-06-25 | v2.3.17 | 合并 v2.3.17 | OAuth 副连接器修复：`/.well-known/oauth-protected-resource/{path}` 严格匹配。冲突文件：`src/server.py`（手动合并 401 中间件 resource_metadata 动态路径）。不影响 custom 改造 |
+| 2026-06-25 | v2.3.16 | 合并 v2.3.12→v2.3.16 | pinned 计数修复 + Windows config.yaml 目录崩溃修复 + 只读根文件系统修复 + 改称呼同步旧记忆 + decay 自愈降级孤儿固化桶。冲突文件 6 个（手动合并 `_common.py`/`utils.py`/`decay_engine.py`/`dashboard.html`，`docs/CLAUDE_PROMPT.md`/`docker-publish.yml` 直接用上游）。不影响 custom 改造 |
 | 2026-06-25 | v2.3.11 | 合并 v2.3.10 + v2.3.11 | 无冲突。改动：VERSION 同步、embedding 模型名归一化、热更新 VERSION 同步。不影响 custom 改造 |
 | 2026-06-25 | v2.3.9 | 合并 v2.3.8 + v2.3.9 | 无冲突。改动：bucket_manager update() unpin demote、dehydrator perspective rule、web/meta 热更新重启。不影响 custom 改造 |
 | 2026-06-25 | v2.3.8 | 新增 grow owner 参数 | 给 `grow` 工具添加 `owner` 参数，与 breath/hold 相同的 set/reset 模式 |
