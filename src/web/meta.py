@@ -201,6 +201,26 @@ def register(mcp) -> None:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    @mcp.custom_route("/api/maintenance/fix-pinned-desync", methods=["GET", "POST"])
+    async def api_fix_pinned_desync(request: Request) -> Response:
+        """修复「pinned 计数卡死」遗留的孤儿固化桶。
+
+        GET  → 只预演，返回孤儿清单（前端先展示「将处理 N 个」让用户确认）。
+        POST → 实际降级（type→dynamic、移出 permanent/，解开 score=999 权重卡死）。
+        两者都需登录。逻辑复用 tools._common.repair_pinned_desync，与命令行脚本同源。
+        """
+        from starlette.responses import JSONResponse
+        err = sh._require_auth(request)
+        if err:
+            return err
+        from tools._common import repair_pinned_desync
+        try:
+            apply = request.method == "POST"
+            result = await repair_pinned_desync(sh.bucket_mgr, apply=apply)
+            return JSONResponse({"ok": True, **result})
+        except Exception as e:
+            return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
     @mcp.custom_route("/api/author", methods=["GET"])
     async def api_author(request: Request) -> Response:
         """Static author note (read-only, public)."""

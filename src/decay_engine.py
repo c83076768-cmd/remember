@@ -287,10 +287,31 @@ class DecayEngine:
         checked = 0
         archived = 0
         auto_resolved = 0
+        demoted_orphans = 0
         lowest_score = float("inf")
 
         for bucket in buckets:
             meta = bucket.get("metadata", {})
+
+            # --- Self-heal: 孤儿固化桶（type==permanent 却没 pinned/protected）---
+            # 早期 unpin 可翻 pinned 标记、没把 type 降级回 dynamic 的历史遗留。这类桶
+            # calculate_score 恒返 999（权重卡死、永不衰减、永远霸占召回置顶），还占着
+            # permanent_count。她/他在前端面板里看不到它们（pinned=False 显示为未钉选，
+            # 点开关只会把它重新钉上，够不着），唯一的出口就是这里。后台衰减循环每 N 小时
+            # 扫全库，顺手把孤儿对称降级回 dynamic：复用 update(pinned=False) 那条已测过的
+            # 「取消钉选→降级」路径（type→dynamic、移图 dynamic/）。降级后本轮先跳过，
+            # 下一轮它就是普通 dynamic 桶、按 importance 算出正常权重并参与衰减。
+            if meta.get("type") == "permanent" and not meta.get("pinned") and not meta.get("protected"):
+                try:
+                    await self.bucket_mgr.update(bucket["id"], pinned=False)
+                    demoted_orphans += 1
+                    logger.info(
+                        f"Decay self-heal / 自愈降级孤儿固化桶: "
+                        f"{meta.get('name', bucket['id'])} ({bucket['id']})"
+                    )
+                except Exception as e:
+                    logger.warning(f"Decay self-heal failed / 自愈降级失败 {bucket.get('id', '?')}: {e}")
+                continue
 
             # Skip permanent / pinned / protected / feel / i buckets
             # 跳过固化桶、钉选/保护桶、feel 桶和 i（自我认知）桶

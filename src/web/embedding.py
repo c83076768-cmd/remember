@@ -33,7 +33,8 @@ def _persist_embedding_yaml(updates: dict) -> None:
     还是旧的 → 与 embeddings.db 里已重算的向量维度不一致 → OB-W005 / 检索失效。
     """
     try:
-        _cfg_path = os.path.join(sh.repo_root, "config.yaml")
+        from utils import config_file_path
+        _cfg_path = config_file_path()
         _save: dict = {}
         if os.path.exists(_cfg_path):
             with open(_cfg_path, "r", encoding="utf-8") as _f:

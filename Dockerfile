@@ -49,6 +49,13 @@ VOLUME ["/app/buckets"]
 # 容器场景默认用 streamable-http
 ENV OMBRE_TRANSPORT=streamable-http
 ENV OMBRE_BUCKETS_DIR=/app/buckets
+# config 默认落在持久卷 /app/buckets 里，而不是镜像可写层 /app/config.yaml。
+# 关键：很多 PaaS（Zeabur / 部分 Render 配置等）用**只读根文件系统**，只有挂载的卷可写——
+# 这时 entrypoint 往 /app/config.yaml 写默认配置会 "Read-only file system" 失败 → FATAL →
+# 无限崩溃重启（本地 root + 可写 /app 复现不出，平台上才炸）。放到 /app/buckets 既避开只读根，
+# 又让 Dashboard 改的 key 落在卷上、重启/重部署不丢。VPS（deploy/docker-compose.yml）显式覆盖回
+# /app/config.yaml 保持原有文件挂载不变。
+ENV OMBRE_CONFIG_PATH=/app/buckets/config.yaml
 # Embedding 使用 API 后端（Gemini）
 # 必须通过运行时 -e 或 docker-compose environment 传入 OMBRE_EMBED_API_KEY
 ENV OMBRE_EMBED_BACKEND=api

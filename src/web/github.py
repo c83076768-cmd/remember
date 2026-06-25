@@ -111,7 +111,8 @@ def register(mcp) -> None:
         gh_cfg["branch"] = branch
         gh_cfg["path_prefix"] = path_prefix
         gh_cfg["auto_interval_minutes"] = auto_interval
-        config_path = os.path.join(sh.repo_root, "config.yaml")
+        from utils import config_file_path
+        config_path = config_file_path()
         try:
             save_config: dict = {}
             if os.path.exists(config_path):

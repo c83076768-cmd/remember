@@ -237,7 +237,8 @@ def register(mcp) -> None:
 
         # --- Persist to config.yaml if requested ---
         if body.get("persist", False):
-            config_path = os.path.join(sh.repo_root, "config.yaml")
+            from utils import config_file_path
+            config_path = config_file_path()
             try:
                 save_config: dict[str, object] = {}
                 if os.path.exists(config_path):
@@ -598,7 +599,8 @@ def register(mcp) -> None:
 
             # 3. 持久化到 config.yaml（bind mount，重建不丢）
             try:
-                _cfg_path = os.path.join(sh.repo_root, "config.yaml")
+                from utils import config_file_path
+                _cfg_path = config_file_path()
                 _save: dict = {}
                 if os.path.exists(_cfg_path):
                     with open(_cfg_path, "r", encoding="utf-8") as _f:

@@ -2366,9 +2366,10 @@
       <h3>① 我</h3>
 
       <div style="margin-bottom:18px;">
-        <div style="font-weight:600;font-size:13px;margin-bottom:6px;">系统通知称呼</div>
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px;">称呼 / 昵称</div>
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.6;">
-          系统向 Claude 发送通知时用的称呼（如你的名字或昵称）。留空 = 默认「人类」。
+          系统通知 + 记忆里对你的称呼（如你的名字或昵称）。留空 = 默认「人类」。<br>
+          保存时会把已有记忆里的旧称呼一并换成新名（标题 / 正文 / 备注），新旧不再并存。
         </div>
         <div class="config-row">
           <label>称呼</label>
@@ -2377,6 +2378,14 @@
         <div style="display:flex;gap:8px;align-items:center;margin-top:6px;">
           <button class="btn-primary" onclick="saveHumanName()" title="保存" style="padding:0 14px;height:36px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="check"></i> 保存</button>
           <span id="settings-human-msg" style="font-size:12px;color:var(--text-dim);"></span>
+        </div>
+        <div style="font-size:12px;color:var(--text-dim);margin:10px 0 6px;line-height:1.6;">
+          已经改过名、但旧记忆里仍残留旧称呼（如「用户」）？在这里填旧词，一键替换为当前称呼。
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="settings-human-from" placeholder="用户" maxlength="20" style="width:120px;" />
+          <button onclick="syncExistingHuman()" title="替换旧记忆" style="font-size:12px;padding:0 12px;height:32px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="replace"></i> 替换旧记忆</button>
+          <span id="settings-human-sync-msg" style="font-size:12px;color:var(--text-dim);"></span>
         </div>
       </div>
 
@@ -2473,6 +2482,18 @@
         <div style="font-weight:600;font-size:13px;margin-bottom:6px;">服务状态</div>
         <div id="settings-status" style="font-size:13px;color:var(--text-dim);line-height:2;">加载中…</div>
         <button onclick="loadSettingsStatus()" title="刷新" style="margin-top:8px;font-size:12px;padding:0 12px;height:32px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="refresh-cw"></i> 刷新</button>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px;">修复钉选计数</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.6;">
+          若「永久桶计数」明显大于面板里实际的钉选数（取消钉选后计数不减、钉新桶老报上限），
+          点这里清理残留的孤儿固化桶：把它们降级回动态桶，释放配额、解开权重卡死。安全幂等，可重复点。
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="fixPinnedDesync()" title="检查并修复" style="font-size:12px;padding:0 12px;height:32px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="wrench"></i> 检查并修复</button>
+          <span id="fix-pinned-msg" style="font-size:12px;"></span>
+        </div>
       </div>
 
       <div>
@@ -3532,6 +3553,39 @@ async function loadSettingsStatus() {
     el.textContent = '加载失败: ' + e;
   }
   await loadTunnelStatus();
+}
+
+// 修复钉选计数：先 GET 预演拿孤儿数 → 确认 → POST 实际降级。
+async function fixPinnedDesync() {
+  const msgEl = document.getElementById('fix-pinned-msg');
+  if (!msgEl) return;
+  msgEl.style.color = 'var(--text-dim)'; msgEl.textContent = '检查中…';
+  try {
+    const presp = await authFetch('/api/maintenance/fix-pinned-desync');
+    if (!presp) return;
+    const pd = await readJsonSafe(presp);
+    if (!pd.ok) { msgEl.style.color = 'var(--negative)'; msgEl.innerHTML = _SV.err + ' ' + esc(pd.error || '检查失败'); return; }
+    const n = (pd.orphans || []).length;
+    if (n === 0) {
+      msgEl.style.color = 'var(--positive, #9DC880)';
+      msgEl.innerHTML = _SV.ok + ` 计数已对齐，当前钉选 ${pd.pinned} 个，无需修复`;
+      return;
+    }
+    if (!confirm(`发现 ${n} 个孤儿固化桶（已取消钉选却没降级）。\n将把它们降级回动态桶（释放配额、解开权重卡死），不会删除内容。是否继续？`)) {
+      msgEl.style.color = 'var(--text-dim)'; msgEl.textContent = '已取消';
+      return;
+    }
+    msgEl.textContent = '修复中…';
+    const aresp = await authFetch('/api/maintenance/fix-pinned-desync', { method: 'POST' });
+    if (!aresp) return;
+    const ad = await readJsonSafe(aresp);
+    if (!ad.ok) { msgEl.style.color = 'var(--negative)'; msgEl.innerHTML = _SV.err + ' ' + esc(ad.error || '修复失败'); return; }
+    msgEl.style.color = 'var(--positive, #9DC880)';
+    msgEl.innerHTML = _SV.ok + ` 已降级 ${ad.demoted} 个` + (ad.failed ? `，失败 ${ad.failed} 个` : '') + `，现在钉选 ${ad.pinned} 个`;
+    await loadSettingsStatus();
+  } catch (e) {
+    msgEl.style.color = 'var(--negative)'; msgEl.innerHTML = _SV.err + ' ' + esc(e.message || String(e));
+  }
 }
 
 // #6: 环境变量面板
@@ -8198,10 +8252,44 @@ async function saveHumanName() {
     });
     var data = await res.json();
     if (!res.ok) throw new Error(data.error || res.statusText);
-    if (msg) { msg.textContent = '已保存'; msg.style.color = 'var(--positive)'; }
-    setTimeout(function() { if (msg) msg.textContent = ''; }, 2000);
+    var changed = (data.renamed && data.renamed.buckets_changed) || 0;
+    if (msg) {
+      msg.textContent = changed > 0 ? ('已保存，并同步了 ' + changed + ' 条旧记忆') : '已保存';
+      msg.style.color = 'var(--positive)';
+    }
+    setTimeout(function() { if (msg) msg.textContent = ''; }, 4000);
   } catch (e) {
     if (msg) { msg.textContent = '保存失败：' + e.message; msg.style.color = 'var(--negative)'; }
+  }
+}
+
+async function syncExistingHuman() {
+  var fromEl = document.getElementById('settings-human-from');
+  var msg = document.getElementById('settings-human-sync-msg');
+  var from = fromEl ? fromEl.value.trim() : '';
+  if (!from) from = '用户';
+  if (msg) { msg.textContent = '替换中…'; msg.style.color = 'var(--text-dim)'; }
+  try {
+    var res = await fetch(BASE + '/api/settings/human/sync-existing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: from }),
+    });
+    var data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || res.statusText);
+    if (data.note) {
+      if (msg) { msg.textContent = data.note; msg.style.color = 'var(--text-dim)'; }
+      return;
+    }
+    var changed = (data.renamed && data.renamed.buckets_changed) || 0;
+    if (msg) {
+      msg.textContent = changed > 0
+        ? ('已把「' + data.from + '」换成「' + data.to + '」，更新了 ' + changed + ' 条记忆')
+        : ('没有找到含「' + data.from + '」的旧记忆');
+      msg.style.color = changed > 0 ? 'var(--positive)' : 'var(--text-dim)';
+    }
+  } catch (e) {
+    if (msg) { msg.textContent = '替换失败：' + e.message; msg.style.color = 'var(--negative)'; }
   }
 }
 </script>

@@ -11,6 +11,7 @@ web/buckets.py — 记忆桶管理 + 设置 + 锚点 + 自我认知读取
 """
 
 import os
+import re
 import yaml
 
 from starlette.requests import Request
@@ -24,6 +25,74 @@ try:
     from utils import strip_wikilinks  # type: ignore
 except ImportError:  # pragma: no cover
     from ..utils import strip_wikilinks  # type: ignore
+
+
+async def rename_human_in_buckets(old: str, new: str) -> dict:
+    """把所有桶里字面量 `old` 正则替换成 `new`（name / content / why_remembered /
+    letter user_name 四处都换）。
+
+    用途：她/他改了称呼后，改名前就存在的老桶仍写着旧词（默认「用户」），breath 里
+    新桶显示新名、老桶还是旧名，看起来"批量替换没生效"。这里一次性补齐。
+
+    刻意**直接改 frontmatter，不走 bucket_mgr.update**：update 会把 last_active 刷成现在，
+    改个称呼不该让全部记忆显得"刚刚动过"、扰乱衰减与浮现排序。content 改了的桶顺手重算
+    embedding（best-effort，无 key/standby 时静默跳过）。
+
+    返回 {buckets_changed, replacements}。old 为空 / old==new 时直接 no-op。"""
+    import frontmatter as _fm
+
+    if not old or not new or old == new:
+        return {"buckets_changed": 0, "replacements": 0}
+
+    pat = re.compile(re.escape(old))
+    bm = sh.bucket_mgr
+    dirs = list(bm._active_dirs) + [bm.archive_dir]
+    changed, total = 0, 0
+
+    for _root, _fname, fpath in bm._iter_md_files(dirs):
+        try:
+            post = _fm.load(fpath)
+        except Exception:
+            continue
+        n = 0
+        content_changed = False
+        new_content, c = pat.subn(new, post.content or "")
+        if c:
+            post.content = new_content
+            n += c
+            content_changed = True
+        for field in ("name", "why_remembered", "user_name"):
+            v = post.get(field)
+            if isinstance(v, str) and v:
+                nv, c2 = pat.subn(new, v)
+                if c2:
+                    post[field] = nv
+                    n += c2
+        if not n:
+            continue
+        try:
+            with open(fpath, "w", encoding="utf-8") as f:
+                f.write(_fm.dumps(post))
+        except OSError as e:
+            logger.warning(f"rename_human write failed {fpath}: {e}")
+            continue
+        changed += 1
+        total += n
+        if content_changed:
+            bid = post.get("id")
+            ee = sh.embedding_engine
+            if bid and ee and getattr(ee, "enabled", False):
+                try:
+                    await ee.generate_and_store(bid, post.content or "")
+                except Exception:
+                    pass
+
+    try:
+        bm._invalidate_bm25()
+    except Exception:
+        pass
+    logger.info(f"rename_human_in_buckets: '{old}'->'{new}' changed={changed} replacements={total}")
+    return {"buckets_changed": changed, "replacements": total}
 
 
 def register(mcp) -> None:
@@ -281,9 +350,8 @@ def register(mcp) -> None:
 
         # --- 写回 config.yaml（iter 2.0 §10 U-03 修复：重启后设置不丢失）---
         try:
-            _cfg_path = os.path.join(
-                sh.repo_root, "config.yaml"
-            )
+            from utils import config_file_path
+            _cfg_path = config_file_path()
             _disk: dict[str, object] = {}
             if os.path.exists(_cfg_path):
                 with open(_cfg_path, "r", encoding="utf-8") as _f:
@@ -330,12 +398,16 @@ def register(mcp) -> None:
             human = "人类"
         if len(human) > 20:
             return JSONResponse({"error": "human name must be ≤ 20 characters"}, status_code=400)
+        # 旧称呼（默认「用户」，与 dehydrator / import 的兜底同源）—— 用于把老桶里的旧词换成新名。
+        old_human = (sh.config.get("human") or "用户").strip() or "用户"
         sh.config["human"] = human
+        # 同步活的 dehydrator.human：否则改名后、重启前，新记忆仍按旧称呼脱水。
+        if getattr(sh, "dehydrator", None) is not None and hasattr(sh.dehydrator, "human"):
+            sh.dehydrator.human = human
         # 写回 config.yaml
         try:
-            _cfg_path = os.path.join(
-                sh.repo_root, "config.yaml"
-            )
+            from utils import config_file_path
+            _cfg_path = config_file_path()
             _disk2: dict[str, object] = {}
             if os.path.exists(_cfg_path):
                 with open(_cfg_path, "r", encoding="utf-8") as _f:
@@ -345,7 +417,42 @@ def register(mcp) -> None:
                 yaml.dump(_disk2, _f, default_flow_style=False, allow_unicode=True)
         except Exception as _e:
             logger.warning(f"human name persist failed: {_e}")
-        return JSONResponse({"ok": True, "human": human})
+        # 改名时把老桶里残留的旧称呼一起换成新名（name/content/why_remembered/user_name）。
+        renamed = {"buckets_changed": 0, "replacements": 0}
+        if old_human and old_human != human:
+            try:
+                renamed = await rename_human_in_buckets(old_human, human)
+            except Exception as _re:
+                logger.warning(f"human rename batch failed: {_re}")
+        return JSONResponse({"ok": True, "human": human, "renamed": renamed})
+
+    # ---- 手动「同步旧记忆」：把指定旧称呼（默认「用户」）批量换成当前称呼 ----
+    # 用于：已经改过昵称、但改名前就存在的老桶仍写着旧词，breath 里新旧名并存。
+    @mcp.custom_route("/api/settings/human/sync-existing", methods=["POST"])
+    async def api_settings_human_sync(request: Request) -> Response:
+        from starlette.responses import JSONResponse
+        err = sh._require_auth(request)
+        if err:
+            return err
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        from_term = (body.get("from") or "用户").strip()
+        cur = (sh.config.get("human") or "人类").strip() or "人类"
+        if not from_term:
+            return JSONResponse({"error": "缺少要替换的旧称呼"}, status_code=400)
+        if from_term == cur:
+            return JSONResponse({
+                "ok": True, "from": from_term, "to": cur,
+                "renamed": {"buckets_changed": 0, "replacements": 0},
+                "note": "要替换的词与当前称呼相同，无需处理",
+            })
+        try:
+            stats = await rename_human_in_buckets(from_term, cur)
+        except Exception as e:
+            return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"ok": True, "from": from_term, "to": cur, "renamed": stats})
 
 
     # ---- iter 2.0: anchor 端点 / coordinate-system buckets ----

@@ -143,17 +143,86 @@ def check_content_size(content: str) -> str | None:
 
 
 async def count_pinned() -> int:
-    """统计当前 pinned 桶数量。失败时返回 0（保守，不阻断）。"""
+    """统计当前 pinned 桶数量。失败时返回 0（保守，不阻断）。
+
+    配额的唯一真相是 metadata.pinned —— 这与前端钉选面板、surface.py 的「核心准则」
+    置顶判定（pinned/protected）完全一致。
+
+    BUG FIX（pinned 计数卡死）：旧实现用 `pinned OR type=="permanent"` 计数。在
+    invariant（type==permanent ⟺ pinned==True）遭破坏时，二者会脱钩：trace(pinned=0)
+    早期版本可翻 pinned 标记、桶却留在 permanent/ 下 type 仍是 "permanent"，这些
+    「孤儿固化桶」pinned=False 却被 type 分支算进配额——计数永不减少（前端只剩 14 个钉选，
+    计数器却卡在 40+），导致锤新桶一直报上限。type==permanent 只可能由 pinned=True 路径
+    产生（create 仅在 bucket_type=="permanent" 或 pinned 时落 permanent/，唯一调用方
+    store_pinned 恒传 pinned=True），所以该分支命中的全是孤儿，去掉它即修复脱钩。
+    存储层的残留（permanent/ 目录、score=999 权重卡死）由 tools/fix_pinned_desync.py 清理。"""
     try:
         all_b = await rt.bucket_mgr.list_all(include_archive=False)
         return sum(
             1 for b in all_b
             if b.get("metadata", {}).get("pinned")
-            or b.get("metadata", {}).get("type") == "permanent"
         )
     except Exception as e:
         rt.logger.warning(f"count_pinned failed: {e}")
         return 0
+
+
+def _is_pinned_orphan(meta: dict) -> bool:
+    """孤儿固化桶：type=="permanent" 且 pinned 不为真。
+
+    type=="permanent" 只可能由 pinned=True 路径产生（create 仅在
+    bucket_type=="permanent" 或 pinned 时落 permanent/，唯一调用方 store_pinned
+    恒传 pinned=True），所以「type==permanent 而 pinned 为假」必然是「曾被钉过、
+    后来取消钉选却没对称降级」的历史脽数据。"""
+    return meta.get("type") == "permanent" and not meta.get("pinned")
+
+
+async def repair_pinned_desync(bucket_mgr, apply: bool = False) -> dict:
+    """扫描并（可选）修复 pinned 计数脱钩遗留的孤儿固化桶。
+
+    count_pinned 已只计 metadata.pinned，钉新桶不再被孤儿掩住；但孤儿文件仍躺在
+    permanent/ 下 type=="permanent"——calculate_score 对它们恒返 999（权重卡死、
+    长期霸占召回置顶），get_stats.permanent_count 也虚高。本函数把孤儿对称降级回
+    dynamic：复用 update(bucket_id, pinned=False)，即 trace(pinned=0) 背后那条
+    已测过的「取消钉选→降级」路径（type→dynamic、移图 dynamic/）。importance 保持
+    原值不主动回退。
+
+    apply=False 只预演回报孤儿清单；apply=True 实际降级。
+    返回 dict：{total, pinned, orphans:[{id,name,importance}], applied, demoted, failed}。"""
+    buckets = await bucket_mgr.list_all(include_archive=False)
+    pinned_now = [b for b in buckets if b.get("metadata", {}).get("pinned")]
+    orphans = [b for b in buckets if _is_pinned_orphan(b.get("metadata", {}))]
+
+    result: dict = {
+        "total": len(buckets),
+        "pinned": len(pinned_now),
+        "orphans": [
+            {
+                "id": b["id"],
+                "name": b.get("metadata", {}).get("name") or "",
+                "importance": b.get("metadata", {}).get("importance"),
+            }
+            for b in orphans
+        ],
+        "applied": apply,
+        "demoted": 0,
+        "failed": 0,
+    }
+    if not apply or not orphans:
+        return result
+
+    for b in orphans:
+        try:
+            ok = await bucket_mgr.update(b["id"], pinned=False)
+            if ok:
+                result["demoted"] += 1
+            else:
+                result["failed"] += 1
+                rt.logger.warning(f"repair_pinned_desync: update returned False for {b['id']}")
+        except Exception as e:
+            result["failed"] += 1
+            rt.logger.warning(f"repair_pinned_desync: update failed for {b['id']}: {e}")
+    return result
 
 
 async def check_pinned_quota() -> str | None:

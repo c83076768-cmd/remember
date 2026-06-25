@@ -21,6 +21,9 @@ services:
       - "8000:8000"
     environment:
       - OMBRE_TRANSPORT=streamable-http
+      # 覆盖镜像默认（/app/buckets/config.yaml）：VPS 仍用下方的 /app/config.yaml 文件挂载，
+      # 现网 config.yaml（含 key）就在那儿，别让它被忽略。根文件系统可写，不受只读限制。
+      - OMBRE_CONFIG_PATH=/app/config.yaml
       - OMBRE_EMBED_BACKEND=${OMBRE_EMBED_BACKEND:-api}
       - OMBRE_COMPRESS_API_KEY=${OMBRE_COMPRESS_API_KEY}
       - OMBRE_COMPRESS_BASE_URL=${OMBRE_COMPRESS_BASE_URL:-}

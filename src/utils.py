@@ -62,6 +62,29 @@ def _project_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def config_file_path() -> str:
+    """config.yaml 的绝对路径 —— 读 / 写 / entrypoint 三方共用的单一真相。
+
+    顺序：
+      1. $OMBRE_CONFIG_PATH —— 显式指定即采纳，**即便文件尚不存在**
+         （entrypoint 会在服务启动前据此创建；Dashboard 写配置时也据此落盘）。
+      2. <cwd>/config.yaml —— 存在才用。
+      3. <project_root>/config.yaml —— 兜底默认。
+
+    为什么独立成函数：load_config 读、Dashboard（config_api/buckets/github/
+    embedding）写、entrypoint 初始化——以前各处都硬编码 <repo_root>/config.yaml。
+    一旦把 config 挂进数据目录（修 Docker 单文件 bind mount 在 Windows 被建成
+    目录、容器崩溃重启的坑），读和写就会分叉到不同路径、Dashboard 存的 key 重启即丢。
+    统一到这里，OMBRE_CONFIG_PATH 一处生效、读写永远同一个文件。"""
+    env_cfg = os.environ.get("OMBRE_CONFIG_PATH", "").strip()
+    if env_cfg:
+        return env_cfg
+    cwd_cfg = os.path.join(os.getcwd(), "config.yaml")
+    if os.path.exists(cwd_cfg):
+        return cwd_cfg
+    return os.path.join(_project_root(), "config.yaml")
+
+
 def load_config(config_path: Optional[str] = None) -> dict:
     """
     Load configuration file.
@@ -103,15 +126,8 @@ def load_config(config_path: Optional[str] = None) -> dict:
     # --- Load user config from YAML file ---
     # --- 从 YAML 文件加载她/他的自定义配置 ---
     if config_path is None:
-        # Search order: $OMBRE_CONFIG_PATH → cwd/config.yaml → project_root/config.yaml
-        # 查找顺序：环境变量 > 当前工作目录 > 项目根目录
-        env_cfg = os.environ.get("OMBRE_CONFIG_PATH", "").strip()
-        if env_cfg and os.path.exists(env_cfg):
-            config_path = env_cfg
-        elif os.path.exists(os.path.join(os.getcwd(), "config.yaml")):
-            config_path = os.path.join(os.getcwd(), "config.yaml")
-        else:
-            config_path = os.path.join(project_root, "config.yaml")
+        # 读写共用同一解析逻辑（config_file_path）：$OMBRE_CONFIG_PATH > cwd > project_root。
+        config_path = config_file_path()
 
     config = defaults.copy()
     if os.path.exists(config_path):
