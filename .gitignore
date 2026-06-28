@@ -35,7 +35,9 @@ docs/secrets/
 tests/integration/
 tests/regression/
 tests/unit/
-/tools/
+# tools/ 下的诊断/修复脚本本地用，但迁移脚本需要随仓库分发供部署时使用
+/tools/*
+!/tools/migrate_bucket_titles.py
 
 rule.md
 models/
