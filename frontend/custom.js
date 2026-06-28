@@ -259,13 +259,14 @@ async function refreshRrInfo() {
     var d = await readJsonSafe(r);
     if (!d || !d.ok) return;
 
-    // info panel
-    document.getElementById('rr-info-enabled').textContent = d.enabled ? '已启用' : '未启用';
-    document.getElementById('rr-info-model').textContent = d.model || '—';
-    document.getElementById('rr-info-key').textContent = d.api_ready ? (d.api_key_masked || '已配置') : '未配置';
-    document.getElementById('rr-info-url').textContent = d.effective_base_url || '—';
-    document.getElementById('rr-info-weight').textContent = d.score_weight != null ? d.score_weight : '—';
-    document.getElementById('rr-info-limit').textContent = d.candidate_limit != null ? d.candidate_limit : '—';
+    // info panel — null 检查防止缺失元素导致后续更新全部跳过
+    var _el;
+    if (_el = document.getElementById('rr-info-enabled')) _el.textContent = d.enabled ? '已启用' : '未启用';
+    if (_el = document.getElementById('rr-info-model')) _el.textContent = d.model || '—';
+    if (_el = document.getElementById('rr-info-key')) _el.textContent = d.api_ready ? (d.api_key_masked || '已配置') : '未配置';
+    if (_el = document.getElementById('rr-info-url')) _el.textContent = d.effective_base_url || '—';
+    if (_el = document.getElementById('rr-info-weight')) _el.textContent = d.score_weight != null ? d.score_weight : '—';
+    if (_el = document.getElementById('rr-info-limit')) _el.textContent = d.candidate_limit != null ? d.candidate_limit : '—';
 
     // meta 行
     var metaTxt = '';
@@ -276,7 +277,7 @@ async function refreshRrInfo() {
     } else {
       metaTxt = _SV.warn + ' 未配置，将跳过重排序';
     }
-    document.getElementById('rr-info-meta').innerHTML = metaTxt;
+    if (_el = document.getElementById('rr-info-meta')) _el.innerHTML = metaTxt;
 
     // notice（未配置时显示警告）
     var rrNotice = document.getElementById('rr-key-notice');
@@ -324,7 +325,7 @@ async function saveRerankerKey() {
 
   // 检查是否已有 key（通过 placeholder 判断，对齐 fetchModels 的逻辑）
   var phEl = document.getElementById('cfg-rr-api-key');
-  var keyIsAlreadySaved = phEl && phEl.placeholder.indexOf('当前:') !== -1;
+  var keyIsAlreadySaved = phEl && phEl.placeholder.indexOf('当前:') !== -1 && phEl.placeholder.indexOf('加载中') === -1;
 
   if (!apiKey && !keyIsAlreadySaved) {
     msgEl.style.color = 'var(--warning)'; msgEl.innerHTML = _SV.warn + ' 请先输入并保存 API Key';
@@ -370,7 +371,7 @@ async function fetchRerankerModels() {
 
   // 检查是否已有 key
   var phEl = document.getElementById('cfg-rr-api-key');
-  var keyIsAlreadySaved = phEl && phEl.placeholder.indexOf('当前:') !== -1;
+  var keyIsAlreadySaved = phEl && phEl.placeholder.indexOf('当前:') !== -1 && phEl.placeholder.indexOf('加载中') === -1;
   var apiKey = (phEl.value || '').trim();
   var baseUrl = (document.getElementById('cfg-rr-base-url').value || '').trim();
 
