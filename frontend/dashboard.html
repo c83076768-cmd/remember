@@ -1262,6 +1262,13 @@
   #ob-chick:hover .chick-tip { opacity:1; transform: translateY(0); }
   @media (max-width: 768px) { #ob-chick { width: 38px; height: 38px; right: 12px; bottom: 12px; } }
 
+  /* —— ⑨b 小鸡的一天：随时段给画布微调色温（纯装饰，best-effort）—— */
+  #ob-chick canvas { transition: filter .8s ease; }
+  #ob-chick.tod-dawn  canvas { filter: hue-rotate(-8deg) brightness(1.05) saturate(1.05); }
+  #ob-chick.tod-day   canvas { filter: brightness(1.08) saturate(1.10); }
+  #ob-chick.tod-dusk  canvas { filter: hue-rotate(-14deg) brightness(0.99) saturate(1.18); }
+  #ob-chick.tod-night canvas { filter: brightness(0.80) saturate(0.78) hue-rotate(10deg); }
+
   /* ==================== Easter Eggs ==================== */
   #egg-overlay {
     display:none; position:fixed; inset:0; z-index:9999;
@@ -1682,8 +1689,44 @@
   .self-overlay.show { opacity: 1; pointer-events: auto; }
 
 
+  /* v2.3.22: 写信日期改拟态化按钮 — 按钮本身可点，
+     里面藏一个 <input type="date"> 只用来存值（id=letter-date，sendLetter 读它），
+     按钮上的文字由 #letter-date-label 显示「请选择日期」或已选日期。 */
+  .config-row button.date-pill {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    height: 39px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    text-align: left;
+    color: var(--text);
+    background: var(--bg);
+    box-shadow: 4px 4px 8px var(--shadow-dark-subtle), -4px -4px 8px var(--shadow-light);
+    transition: all 0.2s ease;
+  }
+  .config-row button.date-pill:hover {
+    box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+  }
+  .config-row button.date-pill:active {
+    box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light);
+  }
+  .config-row button.date-pill:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--accent-glow), 4px 4px 8px var(--shadow-dark-subtle), -4px -4px 8px var(--shadow-light);
+  }
+  #letter-date-label {
+    pointer-events: none;
+    color: var(--text-dim);
+  }
+
   </style>
-  <link rel="stylesheet" href="/static/custom.css?v=5">
+  <link rel="stylesheet" href="/static/custom.css?v=6">
 </head>
 <body>
 
@@ -2071,10 +2114,14 @@
         <label>身份</label>
         <select id="letter-author" style="flex:0 0 140px;">
           <option value="user">user</option>
-          <option value="claude">claude</option>
+          <option value="ai">AI</option>
         </select>
-        <input type="text" id="letter-username" placeholder="user_name（可选）" />
-        <input type="date" id="letter-date" style="flex:0 0 180px;" />
+        <input type="text" id="letter-username" placeholder="署名 name（可选）" />
+        <button type="button" class="date-pill" style="flex:0 0 180px;" onclick="openDatePicker()">
+          <span id="letter-date-label">请选择日期</span>
+          <input type="date" id="letter-date" onchange="syncDateLabel()" oninput="syncDateLabel()"
+                 style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:14px;bottom:0;" />
+        </button>
       </div>
       <div class="config-row">
         <label>归属</label>
@@ -2106,7 +2153,7 @@
         <select id="letter-filter" onchange="loadLetters()" style="flex:0 0 140px;">
           <option value="">全部方向</option>
           <option value="user">仅 YOU</option>
-          <option value="claude">仅 AI</option>
+          <option value="ai">仅 AI</option>
         </select>
         <div class="domain-owner-group" style="display:flex;gap:6px;align-items:center;">
           <button class="domain-owner-btn active" data-letter-owner="" onclick="setLetterOwnerFilter('')">全部</button>
@@ -2646,7 +2693,7 @@
         <div class="config-row"><label>合并阈值</label><input type="number" id="cfg-merge" min="0" max="100" /></div>
         <div style="margin-top:-4px;padding-left:122px;font-size:11px;color:var(--text-light);">0-100，越高越难合并相似桶</div>
         <div class="config-row"><label>breath 默认桶数</label><input type="number" id="cfg-sf-breath-results" min="1" max="50" /></div>
-        <div style="margin-top:-4px;padding-left:122px;font-size:11px;color:var(--text-light);">1-50。Claude 调用 breath() 不指定 max_results 时使用此默认值</div>
+        <div style="margin-top:-4px;padding-left:122px;font-size:11px;color:var(--text-light);">1-50。AI 调用 breath() 不指定 max_results 时使用此默认值</div>
         <div class="config-row"><label>breath 默认 token</label><input type="number" id="cfg-sf-breath-tokens" min="500" max="20000" step="500" /></div>
         <div style="margin-top:-4px;padding-left:122px;font-size:11px;color:var(--text-light);">500-20000。breath 单次返回总 token 上限</div>
         <div class="config-row"><label>feel 历史 token</label><input type="number" id="cfg-sf-feel-tokens" min="500" max="20000" step="500" /></div>
@@ -2736,7 +2783,7 @@
     <div class="config-section" id="sec-mcp">
       <h3>⑥ MCP 配置</h3>
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:16px;line-height:1.7;">
-        生成 Claude Desktop / claude.ai 的 MCP 连接配置。本服务拆成两个端点（主 + 副），对应 claude.ai 5 工具上限的限制。
+        生成 Claude Desktop / claude.ai 的 MCP 连接配置。12 个工具全在一个端点 /mcp 上，只需连这一条。
       </div>
 
       <!-- 模式切换 -->
@@ -2771,23 +2818,47 @@
         <div style="font-weight:600;font-size:13px;margin-bottom:8px;">端点地址</div>
         <div style="background:var(--surface-solid);border-radius:11px;padding:12px 14px;font-family:monospace;font-size:12px;line-height:2;box-shadow:inset 2px 2px 5px var(--shadow-dark-subtle),inset -2px -2px 4px var(--shadow-light);">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-            <span style="color:var(--text-dim);font-size:11px;min-width:60px;">主 /mcp</span>
+            <span style="color:var(--text-dim);font-size:11px;min-width:60px;">/mcp</span>
             <span id="mcp-url-main" style="flex:1;color:var(--text);word-break:break-all;"></span>
             <button onclick="copyMcpUrl('main')" title="复制" style="padding:3px 8px;font-size:11px;white-space:nowrap;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;color:var(--text-dim);"><i data-lucide="copy"></i></button>
           </div>
-          <div style="border-top:1px solid rgba(150,138,116,0.12);margin:6px 0;"></div>
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-            <span style="color:var(--text-dim);font-size:11px;min-width:60px;">副 /mcp-extra</span>
-            <span id="mcp-url-extra" style="flex:1;color:var(--text);word-break:break-all;"></span>
-            <button onclick="copyMcpUrl('extra')" title="复制" style="padding:3px 8px;font-size:11px;white-space:nowrap;background:none;border:1px solid var(--border);border-radius:3px;cursor:pointer;color:var(--text-dim);"><i data-lucide="copy"></i></button>
-          </div>
         </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-light);">12 个工具已合并到单一连接器 /mcp，只需连这一条。</div>
         <div id="mcp-copy-msg" style="margin-top:4px;font-size:11px;color:var(--positive);min-height:16px;"></div>
+      </div>
+
+      <!-- OAuth 鉴权开关 -->
+      <div style="margin:18px 0;padding:14px;background:var(--surface-solid);border-radius:11px;box-shadow:inset 2px 2px 5px var(--shadow-dark-subtle),inset -2px -2px 4px var(--shadow-light);">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;">OAuth 鉴权</div>
+        <div class="config-row" style="align-items:center;">
+          <label>连接鉴权</label>
+          <select id="cfg-mcp-auth" style="flex:1;max-width:440px;min-width:0;">
+            <option value="true">开启 OAuth（Claude.ai 网页版 / Claude Code 远程需要）</option>
+            <option value="false">关闭 · 免认证直连（自有前端 / GPT / GLM）</option>
+          </select>
+          <button type="button" onclick="saveMcpAuth()" title="保存并写入 config.yaml" style="margin-left:8px;padding:0 12px;height:32px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="save"></i> 保存</button>
+          <span id="mcp-auth-msg" style="margin-left:8px;font-size:11px;"></span>
+        </div>
+        <div style="margin-top:6px;font-size:11px;color:var(--text-light);line-height:1.7;">
+          改动写入 config.yaml，<b>需重启服务后生效</b>。关闭后任何能访问 /mcp 的人都能读写记忆，请勿裸奔公网（放内网，或在反代层另加一道鉴权）。
+        </div>
+      </div>
+
+      <!-- 服务端口 -->
+      <div style="margin:18px 0;padding:14px;background:var(--surface-solid);border-radius:11px;box-shadow:inset 2px 2px 5px var(--shadow-dark-subtle),inset -2px -2px 4px var(--shadow-light);">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;">服务端口</div>
+        <div class="config-row" style="align-items:center;">
+          <label>对外端口</label>
+          <input type="number" id="cfg-host-port" min="1" max="65535" placeholder="18001" style="width:140px;" />
+          <button type="button" onclick="saveHostPort()" title="保存端口" style="margin-left:8px;padding:0 12px;height:32px;font-size:12px;white-space:nowrap;display:inline-flex;align-items:center;gap:4px;"><i data-lucide="save"></i> 保存</button>
+          <span id="host-port-msg" style="margin-left:8px;font-size:11px;"></span>
+        </div>
+        <div id="host-port-hint" style="margin-top:6px;font-size:11px;color:var(--text-light);line-height:1.7;"></div>
       </div>
 
       <!-- 操作按钮 -->
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-        <button class="btn-primary" onclick="copyAllMcpUrls()" title="一键复制两条链接"><i data-lucide="copy"></i> 复制全部</button>
+        <button class="btn-primary" onclick="copyAllMcpUrls()" title="复制 /mcp 链接"><i data-lucide="copy"></i> 复制链接</button>
         <button onclick="exportClaudeDesktopConfig()" title="导出 claude_desktop_config.json" style="padding:7px 14px;font-size:13px;border:1px solid var(--border);background:none;border-radius:2px;cursor:pointer;font-family:inherit;color:var(--text);display:inline-flex;align-items:center;gap:6px;"><i data-lucide="download"></i> desktop config</button>
       </div>
 
@@ -2927,7 +2998,7 @@
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.6;">
           用于批量彻底删除记忆桶（物理删除，不可恢复）。<br>
           <strong>仅用于清理批量导入时分析出错产生的垃圾记忆。</strong><br>
-          Claude 无法触发此操作；删除后 Claude 下次任意工具调用时会收到一次性通知。
+          AI 无法触发此操作；删除后 AI 下次任意工具调用时会收到一次性通知。
         </div>
         <button class="btn-danger" onclick="enterPurgeMode()" style="padding:6px 18px;font-size:12px;">
           进入清理模式（批量永久删除）
@@ -4933,6 +5004,113 @@ window.ObPet = (function () {
 
 function updateChick(total) { if (window.ObPet) ObPet.setCount(total || 0); }
 
+// =====================================================
+// 小鸡的「天气 / 时间 / 心情」彩蛋 · ObChickFlavor
+//   hover 时拼一句：时段 + 天气 + 记忆心情；随时段给画布上色温
+//   纯 best-effort，失败就静默不显示（不抢 ObPet 的戏）
+// =====================================================
+(function ObChickFlavor(){
+  var weather = null;  // {emoji, desc, temp} | null
+
+  function getBuckets(){ try { return allBuckets || []; } catch(e){ return (window.allBuckets || []); } }
+  function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+  function timeOfDay(){
+    var h = new Date().getHours();
+    if (h>=5 && h<8)   return {cls:'tod-dawn',  hi:['天刚亮','清晨好','早上好呀'], emoji:'🌅'};
+    if (h>=8 && h<17)  return {cls:'tod-day',   hi:['白天','此刻','今天'],         emoji:'🌞'};
+    if (h>=17 && h<20) return {cls:'tod-dusk',  hi:['黄昏','傍晚','日落时分'],     emoji:'🌇'};
+    return                    {cls:'tod-night', hi:['夜里','这么晚还醒着','深夜'], emoji:'🌙'};
+  }
+
+  // 最近活跃的几条普通桶，平均 valence/arousal → 心情标签（Russell 象限）
+  function recentMood(){
+    var bs = getBuckets().filter(function(b){
+      return b && typeof b.valence==='number'
+        && b.type!=='letter' && b.type!=='plan' && b.type!=='archived';
+    });
+    if (!bs.length) return null;
+    bs.sort(function(a,b){ return (b.last_active||b.created||'').localeCompare(a.last_active||a.created||''); });
+    var top = bs.slice(0,8), v=0, a=0;
+    top.forEach(function(b){ v += (b.valence!=null?b.valence:0.5); a += (b.arousal!=null?b.arousal:0.3); });
+    v/=top.length; a/=top.length;
+    if (v>=0.62) return a>=0.55 ? {label:'雀跃',     emoji:'✨'} : {label:'暖洋洋',   emoji:'☺️'};
+    if (v<=0.40) return a>=0.55 ? {label:'有点烦躁', emoji:'😖'} : {label:'有点低落', emoji:'🥺'};
+    return            a>=0.55 ? {label:'微微紧绷', emoji:'😬'} : {label:'平平静静', emoji:'🍃'};
+  }
+
+  // 天气：open-meteo（无 key、CORS 友好）。坐标按时区粗映射，查不到就不显示天气。
+  var TZ = {
+    'Australia/Sydney':[-33.87,151.21],'Australia/Melbourne':[-37.81,144.96],
+    'Asia/Shanghai':[31.23,121.47],'Asia/Hong_Kong':[22.32,114.17],'Asia/Taipei':[25.03,121.57],
+    'Asia/Tokyo':[35.68,139.69],'Asia/Singapore':[1.35,103.82],'Asia/Seoul':[37.57,126.98],
+    'Asia/Bangkok':[13.76,100.50],'Asia/Kolkata':[28.61,77.21],'Asia/Dubai':[25.20,55.27],
+    'Europe/London':[51.51,-0.13],'Europe/Paris':[48.86,2.35],'Europe/Berlin':[52.52,13.40],
+    'America/New_York':[40.71,-74.01],'America/Los_Angeles':[34.05,-118.24],'America/Chicago':[41.88,-87.63]
+  };
+  function wmo(c){
+    if (c===0) return {emoji:'☀️',desc:'晴'};
+    if (c<=3)  return {emoji:'⛅',desc:'多云'};
+    if (c<=48) return {emoji:'🌫️',desc:'雾蒙蒙'};
+    if (c<=57) return {emoji:'🌦️',desc:'毛毛雨'};
+    if (c<=67) return {emoji:'🌧️',desc:'下雨'};
+    if (c<=77) return {emoji:'❄️',desc:'下雪'};
+    if (c<=82) return {emoji:'🌧️',desc:'阵雨'};
+    if (c<=86) return {emoji:'🌨️',desc:'阵雪'};
+    if (c<=99) return {emoji:'⛈️',desc:'打雷'};
+    return null;
+  }
+  function fetchWeather(){
+    try {
+      var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      var c = TZ[tz]; if (!c) return;
+      var ctrl = new AbortController(); setTimeout(function(){ try{ctrl.abort();}catch(e){} }, 3500);
+      fetch('https://api.open-meteo.com/v1/forecast?latitude='+c[0]+'&longitude='+c[1]+'&current=temperature_2m,weather_code', {signal:ctrl.signal})
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(j){
+          if (!j || !j.current) return;
+          var w = wmo(j.current.weather_code); if (!w) return;
+          weather = { emoji:w.emoji, desc:w.desc, temp:Math.round(j.current.temperature_2m) };
+        }).catch(function(){});
+    } catch(e){}
+  }
+
+  function compose(){
+    // 偶尔来一句纯废话
+    if (Math.random()<0.18) return pick([
+      '我在站岗 🐤','刚啄了一下你的记忆','别看了，专心 :)','咕… 我也想被记住','存点好的给我孵 🥚','今天也要乖乖的'
+    ]);
+    var tod = timeOfDay(), mood = recentMood(), parts = [];
+    parts.push(pick(tod.hi)+' '+tod.emoji);
+    if (weather) parts.push(weather.emoji + (Math.random()<0.5 ? (' '+weather.desc) : (' '+weather.temp+'°')));
+    if (mood)    parts.push(mood.emoji + ' 记忆里' + mood.label);
+    return parts.join(' · ');
+  }
+
+  function applyTint(){
+    var host = document.getElementById('ob-chick'); if (!host) return;
+    host.classList.remove('tod-dawn','tod-day','tod-dusk','tod-night');
+    host.classList.add(timeOfDay().cls);
+  }
+
+  function hook(){
+    var host = document.getElementById('ob-chick');
+    if (!host) { return setTimeout(hook, 1000); }   // 小鸡可能还没 ensure()，等一下
+    applyTint();
+    host.addEventListener('mouseenter', function(){
+      var tip = host.querySelector('.chick-tip');
+      if (!tip || host.classList.contains('raging')) return;  // 暴走时不抢话
+      tip.textContent = compose();
+    });
+    setInterval(applyTint, 5*60*1000);   // 每 5 分钟跟一次时段
+  }
+
+  fetchWeather();
+  setInterval(fetchWeather, 30*60*1000);
+  if (document.readyState !== 'loading') hook();
+  else document.addEventListener('DOMContentLoaded', hook);
+})();
+
 // 搜索框空闲时，placeholder 偶尔换一句
 var _phLines = [
   '搜索记忆…',
@@ -5821,8 +5999,20 @@ async function loadConfig() {
     document.getElementById('cfg-sf-breath-results').value = sf.breath_max_results || 20;
     document.getElementById('cfg-sf-breath-tokens').value = sf.breath_max_tokens || 10000;
     document.getElementById('cfg-sf-feel-tokens').value = sf.feel_max_tokens || 6000;
+    var mcpAuthEl = document.getElementById('cfg-mcp-auth');
+    if (mcpAuthEl) mcpAuthEl.value = cfg.mcp_require_auth ? 'true' : 'false';
+    var portEl = document.getElementById('cfg-host-port');
+    if (portEl) portEl.value = cfg.host_port || '';
+    var portHint = document.getElementById('host-port-hint');
+    if (portHint) {
+      portHint.innerHTML = cfg.in_docker
+        ? 'Docker 部署：容器内端口固定，对外端口由 host 映射决定。保存后请在宿主跑 <code>OMBRE_HOST_PORT=端口 docker compose -f deploy/docker-compose.yml up -d</code>（或 <code>bash deploy/deploy.sh</code>）重建生效。'
+        : '裸机部署：保存后<b>重启服务</b>即监听新端口（留空=默认 18001）。';
+    }
     document.getElementById('config-readonly').innerHTML =
-      'Transport: <strong>' + cfg.transport + '</strong><br>Buckets dir: <strong>' + cfg.buckets_dir + '</strong>';
+      'Transport: <strong>' + cfg.transport + '</strong><br>数据目录: <strong>' + cfg.buckets_dir + '</strong>'
+      + '<br>运行环境: <strong>' + (cfg.in_docker ? 'Docker 容器' : '裸机') + '</strong>'
+      + '<br>对外端口: <strong>' + (cfg.host_port || '18001（默认）') + '</strong>';
   } catch (e) {
     document.getElementById('config-status').innerHTML =
       '<span style="color:var(--negative)">加载失败: ' + e.message + '</span>';
@@ -6662,11 +6852,15 @@ async function loadLogs() {
     if (d.error) { out.textContent = '加载失败: ' + d.error; return; }
     if (!d.lines || !d.lines.length) {
       out.textContent = d.note || '(无符合条件的日志)';
-      meta.textContent = d.log_file || '';
+      const _fp = d.log_file || '';
+      meta.textContent = _fp.split(/[\\/]/).pop() || _fp;
+      meta.title = _fp;
       return;
     }
     out.textContent = d.lines.join('\n');
-    meta.textContent = (d.log_file || '') + ' · ' + d.count + ' 行';
+    const _fp = d.log_file || '';
+    meta.textContent = (_fp.split(/[\\/]/).pop() || _fp) + ' · ' + d.count + ' 行';
+    meta.title = _fp;
     out.scrollTop = out.scrollHeight;
   } catch (e) { out.textContent = '加载失败: ' + e.message; }
 }
@@ -6774,22 +6968,71 @@ function _getMcpOrigin() {
   return 'http://127.0.0.1:' + port;
 }
 
+async function saveMcpAuth() {
+  const msg = document.getElementById('mcp-auth-msg');
+  const val = document.getElementById('cfg-mcp-auth').value === 'true';
+  try {
+    const res = await authFetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mcp_require_auth: val, persist: true }),
+    });
+    if (!res) return;
+    const result = await res.json();
+    if (result.ok) {
+      msg.style.color = 'var(--positive)';
+      msg.textContent = '已保存，重启服务后生效';
+    } else {
+      msg.style.color = 'var(--negative)';
+      msg.textContent = result.error || '保存失败';
+    }
+  } catch (e) {
+    msg.style.color = 'var(--negative)';
+    msg.textContent = '请求失败: ' + e.message;
+  }
+}
+
+async function saveHostPort() {
+  const msg = document.getElementById('host-port-msg');
+  const raw = (document.getElementById('cfg-host-port').value || '').trim();
+  const port = raw === '' ? null : parseInt(raw, 10);
+  if (port !== null && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+    msg.style.color = 'var(--negative)'; msg.textContent = '端口需为 1-65535'; return;
+  }
+  try {
+    const res = await authFetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host_port: port === null ? 18001 : port, persist: true }),
+    });
+    if (!res) return;
+    const result = await res.json();
+    if (result.ok) {
+      msg.style.color = 'var(--positive)';
+      msg.textContent = '已保存（按上方提示重启 / 重建生效）';
+    } else {
+      msg.style.color = 'var(--negative)';
+      msg.textContent = result.error || '保存失败';
+    }
+  } catch (e) {
+    msg.style.color = 'var(--negative)';
+    msg.textContent = '请求失败: ' + e.message;
+  }
+}
+
 function renderMcpUrls() {
   const origin = _getMcpOrigin();
   const mainUrl = origin + '/mcp';
-  const extraUrl = origin + '/mcp-extra';
   document.getElementById('mcp-url-main').textContent = mainUrl;
-  document.getElementById('mcp-url-extra').textContent = extraUrl;
   // 更新 JSON 预览
-  const cfg = _buildClaudeDesktopConfig(mainUrl, extraUrl);
+  const cfg = _buildClaudeDesktopConfig(mainUrl);
   document.getElementById('mcp-json-preview').textContent = JSON.stringify(cfg, null, 2);
 }
 
-function _buildClaudeDesktopConfig(mainUrl, extraUrl) {
+function _buildClaudeDesktopConfig(mainUrl) {
   return {
     mcpServers: {
-      "ombre-brain": { url: mainUrl, type: "http" },
-      "ombre-brain-extra": { url: extraUrl, type: "http" }
+      "ombre-brain": { url: mainUrl, type: "http" }
     }
   };
 }
@@ -6802,7 +7045,7 @@ function onMcpModeChange() {
 }
 
 function copyMcpUrl(which) {
-  const el = document.getElementById(which === 'main' ? 'mcp-url-main' : 'mcp-url-extra');
+  const el = document.getElementById('mcp-url-main');
   const text = el?.textContent || '';
   navigator.clipboard.writeText(text).then(() => {
     const msg = document.getElementById('mcp-copy-msg');
@@ -6812,17 +7055,15 @@ function copyMcpUrl(which) {
 
 function copyAllMcpUrls() {
   const main = document.getElementById('mcp-url-main')?.textContent || '';
-  const extra = document.getElementById('mcp-url-extra')?.textContent || '';
-  navigator.clipboard.writeText(main + '\n' + extra).then(() => {
+  navigator.clipboard.writeText(main).then(() => {
     const msg = document.getElementById('mcp-copy-msg');
-    if (msg) { msg.textContent = '已复制两条链接'; setTimeout(() => { msg.textContent = ''; }, 2500); }
+    if (msg) { msg.textContent = '已复制 /mcp 链接'; setTimeout(() => { msg.textContent = ''; }, 2500); }
   });
 }
 
 function exportClaudeDesktopConfig() {
   const mainUrl = document.getElementById('mcp-url-main')?.textContent || '';
-  const extraUrl = document.getElementById('mcp-url-extra')?.textContent || '';
-  const cfg = _buildClaudeDesktopConfig(mainUrl, extraUrl);
+  const cfg = _buildClaudeDesktopConfig(mainUrl);
   const blob = new Blob([JSON.stringify(cfg, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -7270,8 +7511,8 @@ async function loadLetters() {
 }
 
 function _renderLetter(l) {
-  const who = l.author === 'user' ? (l.user_name || 'user') : 'claude';
-  const accentColor = l.author === 'claude' ? 'var(--accent)' : 'var(--text-dim)';
+  const who = l.author === 'user' ? (l.user_name || 'user') : (l.author || 'AI');
+  const accentColor = l.author !== 'user' ? 'var(--accent)' : 'var(--text-dim)';
   return `<article style="background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:18px 22px;box-shadow:4px 4px 10px var(--shadow-dark-subtle), -4px -4px 10px var(--shadow-light);" data-id="${l.id}">
     <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.15em;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
       <span style="color:${accentColor};font-weight:600;">${esc(who)}</span><span>${_ownerTagHtml(l.owner)}${esc(l.date || '')}</span>
@@ -7284,6 +7525,23 @@ function _renderLetter(l) {
     </div>
   </article>`;
 }
+
+function openDatePicker() {
+    const inp = document.getElementById('letter-date');
+    if (!inp) return;
+    try {
+      if (typeof inp.showPicker === 'function') { inp.showPicker(); return; }
+    } catch (e) { /* 某些浏览器在非用户手势下会抛错，下面兜底 */ }
+    inp.focus();
+    inp.click();
+  }
+
+  // 选完日期后，把按钮上的文字更新成所选日期（没选则回到提示）。
+  function syncDateLabel() {
+    const inp = document.getElementById('letter-date');
+    const lbl = document.getElementById('letter-date-label');
+    if (inp && lbl) lbl.textContent = inp.value || '请选择日期';
+  }
 
 async function sendLetter() {
   const status = document.getElementById('letter-status');
@@ -7495,7 +7753,7 @@ function copyFeedback() {
 </div>
 <!-- ============================================================
      批量硬删确认 Modal（3 步确认）
-     仅用户操作，Claude 无法触发；删除后向 Claude 发送一次性通知
+     仅用户操作，AI 无法触发；删除后向 AI 发送一次性通知
      全程展示待删除桶列表
      ============================================================ -->
 <div id="purge-modal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(44,42,38,0.6);backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;padding-top:40px;overflow-y:auto;">
@@ -7515,7 +7773,7 @@ function copyFeedback() {
       <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:var(--text);line-height:1.7;">
         <input type="checkbox" id="purge-chk-confirm" onchange="purgeCheckStep1()"
           style="accent-color:var(--accent);margin-top:3px;flex-shrink:0;">
-        <span>我知道这是<strong>永久删除</strong>，文件将从磁盘上完全移除，任何人包括 Claude 都无法恢复。</span>
+        <span>我知道这是<strong>永久删除</strong>，文件将从磁盘上完全移除，任何人包括 AI 都无法恢复。</span>
       </label>
       <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
         <button onclick="closePurgeModal()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:2px;padding:6px 16px;font-size:12px;cursor:pointer;">取消</button>
@@ -7741,7 +7999,7 @@ async function executePurge() {
     closePurgeModal();
     exitPurgeMode();
     await loadBuckets();
-    var msg = '已永久删除 ' + data.deleted + ' 条记忆桶。Claude 将在下次工具调用时收到通知。';
+    var msg = '已永久删除 ' + data.deleted + ' 条记忆桶。AI 将在下次工具调用时收到通知。';
     if (data.failed && data.failed.length) msg += '\n未能删除：' + data.failed.join(', ');
     alert(msg);
   } catch (e) {
@@ -7950,6 +8208,6 @@ function renderSelfEntries() {
 })();
 </script>
 
-<script src="/static/custom.js?v=4"></script>
+<script src="/static/custom.js?v=5"></script>
 </body>
 </html>

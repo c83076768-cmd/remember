@@ -29,6 +29,7 @@ data/
 # Internal design docs, reflections, iteration specs — local only
 docs/internal/
 docs/secret/
+docs/secrets/
 
 # 测试 & 维护工具 —— 不上传（需要时本地维护）
 tests/integration/
@@ -40,11 +41,6 @@ rule.md
 models/
 test_analyze.py
 test_flow.py
-
-# Mock 数据 & 测试脚本 —— 不上传
-seed_mock_data.py
-tests/test_*.py
-tests/conftest.py
 
 # 一次性诊断 / 部署脚本 —— 本地用，不上传
 tmp/

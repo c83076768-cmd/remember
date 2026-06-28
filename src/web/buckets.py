@@ -539,12 +539,12 @@ def register(mcp) -> None:
 
     @mcp.custom_route("/api/buckets/purge", methods=["POST"])
     async def api_buckets_purge(request: Request) -> Response:
-        """Dashboard-only hard purge: physically removes files and generates Claude notification.
+        """Dashboard-only hard purge: physically removes files and generates an AI notification.
 
         Only callable from the dashboard (requires X-Purge-Confirm header).
-        Not exposed as an MCP tool — Claude cannot trigger this.
+        Not exposed as an MCP tool — the AI cannot trigger this.
         After purge, _pending_deletions.json is written; the next tool call
-        sends a one-time notice to Claude about what was deleted.
+        sends a one-time notice to the AI about what was deleted.
         """
         from starlette.responses import JSONResponse
         import frontmatter as _fm

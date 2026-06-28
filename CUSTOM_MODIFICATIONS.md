@@ -1,7 +1,7 @@
 # Ombre-Brain Custom 改造日志
 
 > **用途**：记录 custom 分支相对 upstream（`origin/main`）的所有改动，供上游更新时快速审查兼容性。
-> **最后更新**：2026-06-25（基于 v2.3.17）
+> **最后更新**：2026-06-29（基于 v2.3.22）
 > **维护方式**：每次新增 custom 改动或合并上游后，更新对应章节。
 
 ---
@@ -10,7 +10,7 @@
 
 | 改造模块 | 新建文件 | 修改文件 | 状态 |
 |----------|---------|---------|------|
-| Reranker 重排序引擎 | `src/reranker_engine.py`, `src/web/reranker.py` | `server.py`, `tools/_runtime.py`, `tools/breath/search.py`, `web/__init__.py`, `web/_shared.py`, `web/config_api.py`, `frontend/dashboard.html` | 已完成 |
+| Reranker 重排序引擎 | `src/reranker_engine.py`, `src/web/reranker.py` | `server.py`, `tools/_runtime.py`, `tools/breath/search.py`, `web/__init__.py`, `web/_shared.py`, `frontend/dashboard.html` | 已完成 |
 | 多 AI 记忆隔离 (owner) | `src/owner_filter.py` | `server.py`, `bucket_manager.py`, `tools/breath/search.py`, `tools/breath/feel.py`, `tools/breath/importance.py`, `tools/breath/surface.py` | 已完成 |
 | 域 / Domain 时间线视图 | `seed_mock_data.py`（mock 数据脚本，可选） | `web/buckets.py`, `frontend/dashboard.html` | 已完成 |
 | Plan/Letter owner 隔离 | 无新建 | `server.py`, `tools/plan/core.py`, `tools/_common.py`, `tools/dream/__init__.py`, `web/hooks.py`, `web/plans.py`, `web/letters.py`, `frontend/dashboard.html` | 已完成 |
@@ -122,11 +122,13 @@
 
 - **L83**：新增 `reranker_engine = None` 共享槽位
 
-#### 8. `src/web/config_api.py`
+#### 8. `src/web/config_api.py`（**已迁出，见 `web/reranker.py`**）
 
-- **L473-476**：新增 4 个 reranker 环境变量映射（`OMBRE_RERANKER_*`）
-- **L483**：新增 reranker 配置变更说明
-- **L663-676**：reranker 配置变更时热重建 `reranker_engine` 实例
+> **v2.3.22 同步说明**：reranker 的环境变量映射、配置热重建逻辑已在更早的改造中整体迁到独立模块 `src/web/reranker.py`，`config_api.py` 现已**零 custom 改动**，可与上游自由同步。历史记录保留如下仅供追溯：
+>
+> - ~~L473-476：新增 4 个 reranker 环境变量映射（`OMBRE_RERANKER_*`）~~
+> - ~~L483：新增 reranker 配置变更说明~~
+> - ~~L663-676：reranker 配置变更时热重建 `reranker_engine` 实例~~
 
 #### 9. `frontend/dashboard.html`
 
@@ -140,7 +142,7 @@
 | `server.py` 的工具初始化流程 | `reranker_engine` 注入是否被上游重构打断 |
 | `tools/_runtime.py` 的全局槽位 | 上游是否新增/重命名槽位导致 `reranker_engine` 被覆盖 |
 | `web/__init__.py` 的模块注册 | `register_all()` 是否被上游重构导致 reranker 注册丢失 |
-| `web/config_api.py` 的环境变量表 | 上游是否重构 env 映射结构导致 reranker 变量丢失 |
+| `web/config_api.py` 的环境变量表 | ~~上游是否重构 env 映射结构导致 reranker 变量丢失~~（v2.3.22：reranker 已迁至 `web/reranker.py`，config_api.py 零 custom 改动，可自由同步） |
 | `frontend/dashboard.html` | 合并冲突时优先保留 custom 的 reranker 面板代码 |
 
 ### 降级安全性
@@ -346,8 +348,8 @@ dashboard.html 是 custom 改造和上游改动冲突最频繁的文件（改造
 - **删除**：原内嵌的 domain JS（`renderDomainTimeline` 等约 200 行）
 - **删除**：原内嵌的 plan/letter owner 筛选 JS（`setPlanOwnerFilter`/`setLetterOwnerFilter` 共约 20 行）
 - **删除**：原独立 `<script>` 块的 Reranker UI JS（约 190 行）
-- **新增**：`</style>` 前加 `<link rel="stylesheet" href="/static/custom.css?v=1">`
-- **新增**：`</body>` 前加 `<script src="/static/custom.js?v=1"></script>`
+- **新增**：`</style>` 前加 `<link rel="stylesheet" href="/static/custom.css?v=6">`
+- **新增**：`</body>` 前加 `<script src="/static/custom.js?v=5"></script>`
 - **侵入点注释**：`loadPlans` / `loadLetters` 里的 owner 过滤行前加 `// custom: owner filter` 注释
 
 ### 加载顺序与依赖
@@ -355,12 +357,12 @@ dashboard.html 是 custom 改造和上游改动冲突最频繁的文件（改造
 ```
 <head>
   ...上游 <style>...</style>
-  <link rel="stylesheet" href="/static/custom.css?v=1">   ← custom CSS（覆盖上游样式）
+  <link rel="stylesheet" href="/static/custom.css?v=6">   ← custom CSS（覆盖上游样式）
 </head>
 <body>
   ...上游 HTML...
   <script>...上游 JS（定义 allBuckets/esc/authFetch/readJsonSafe/_SV/showDetail/loadPlans/loadLetters...）</script>
-  <script src="/static/custom.js?v=1"></script>           ← custom JS（依赖上游全局变量/函数）
+  <script src="/static/custom.js?v=5"></script>           ← custom JS（依赖上游全局变量/函数）
 </body>
 ```
 
@@ -372,8 +374,8 @@ dashboard.html 是 custom 改造和上游改动冲突最频繁的文件（改造
 
 | 位置 | 内容 | 用途 |
 |------|------|------|
-| `<head>` 末尾 | `<link rel="stylesheet" href="/static/custom.css?v=1">` | 加载 custom CSS |
-| `<body>` 末尾 | `<script src="/static/custom.js?v=1"></script>` | 加载 custom JS |
+| `<head>` 末尾 | `<link rel="stylesheet" href="/static/custom.css?v=6">` | 加载 custom CSS |
+| `<body>` 末尾 | `<script src="/static/custom.js?v=5"></script>` | 加载 custom JS |
 | 域视图 HTML | `id="domain-view"` 整块 + owner 筛选按钮 + `onclick="setPlanOwnerFilter(...)"` | 域视图 DOM 结构 |
 | 计划面板 HTML | owner 筛选按钮 `onclick="setPlanOwnerFilter(...)"` | plan owner 筛选 UI |
 | 信件面板 HTML | owner 筛选按钮 `onclick="setLetterOwnerFilter(...)"` + 写信表单 owner 下拉框 | letter owner 筛选 UI |
@@ -387,8 +389,8 @@ dashboard.html 是 custom 改造和上游改动冲突最频繁的文件（改造
 
 | 上游改动点 | 检查内容 |
 |-----------|---------|
-| `dashboard.html` 的 `<head>` | 确认 `<link rel="stylesheet" href="/static/custom.css?v=1">` 仍在 `</style>` 后 |
-| `dashboard.html` 的 `<body>` 末尾 | 确认 `<script src="/static/custom.js?v=1"></script>` 仍在主 `</script>` 后 |
+| `dashboard.html` 的 `<head>` | 确认 `<link rel="stylesheet" href="/static/custom.css?v=6">` 仍在 `</style>` 后 |
+| `dashboard.html` 的 `<body>` 末尾 | 确认 `<script src="/static/custom.js?v=5"></script>` 仍在主 `</script>` 后 |
 | `dashboard.py` 的静态文件白名单 | 确认 `custom.css` / `custom.js` 仍在 `allowed` 字典里 |
 | `custom.js` 依赖的全局变量/函数 | 上游是否重命名 `allBuckets`/`esc`/`authFetch`/`readJsonSafe`/`_SV`/`showDetail`/`loadPlans`/`loadLetters`，导致 custom.js 调用失败 |
 | `dashboard.html` 的侵入点 | 确认 owner 筛选按钮、域视图 DOM、`renderDomainTimeline()` 调用仍在 |
@@ -403,7 +405,7 @@ dashboard.html 是 custom 改造和上游改动冲突最频繁的文件（改造
 
 4. **DOMContentLoaded 时机**：custom.js 里有 `document.addEventListener('DOMContentLoaded', ...)` 回调。因为 custom.js 在主脚本之后、`</body>` 之前同步加载，DOMContentLoaded 尚未触发，回调能正确执行。
 
-5. **缓存控制**：`<link>` 和 `<script>` 用 `?v=1` 查询参数做缓存控制。更新 custom.css/custom.js 后，需把 dashboard.html 里的 `?v=1` 改成 `?v=2` 强制浏览器刷新缓存。或者直接 Ctrl+F5 硬刷新。
+5. **缓存控制**：`<link>` 和 `<script>` 用 `?v=N` 查询参数做缓存控制。更新 custom.css/custom.js 后，需把 dashboard.html 里的 `?v=N` 改成 `?v=N+1` 强制浏览器刷新缓存。或者直接 Ctrl+F5 硬刷新。当前版本：custom.css?v=6 / custom.js?v=5（v2.3.22 同步时 bump）。
 
 6. **静态文件安全**：dashboard.py 的 `/static/{name}` 路由用白名单字典精确匹配文件名，不暴露目录遍历风险。新增 custom 文件只需在 `allowed` 字典加一行即可。
 
@@ -537,6 +539,7 @@ git merge --no-edit origin/main
 
 | 日期 | 上游版本 | 操作 | 说明 |
 |------|---------|------|------|
+| 2026-06-29 | v2.3.22 | 合并 v2.3.18→v2.3.22 | **手动 file-by-file 同步**（本地仓库与 upstream 无共同祖先，无法 `git merge`）。7 个冲突文件采用「保留双方」策略：owner 轴 + 上游 author 轴并存。详见下方「v2.3.22 同步记录」章节 |
 | 2026-06-26 | v2.3.18 | 新增改造六 | 8 固定主题域（dehydrator/reclassify_api/import_memory prompt 强化 + 83 桶数据归一化）+ buckets 三行筛选器（monkey-patch buildFilters/filterBuckets）+ 域界面单行布局 + 时间线左移 + 手机端适配 + 数据恢复（106 桶从 ECS 备份恢复）+ owner 徽章（先加后删）|
 | 2026-06-26 | v2.3.18 | 上传 GitHub | 推送到 https://github.com/c83076768-cmd/remember.git (origin)，原 origin 重命名为 upstream（P0luz/Ombre-Brain.git）。清理 mock 数据 + 测试文件（2400 行删除），脱敏验证无 API key/个人路径 |
 | 2026-06-25 | v2.3.17 | 新增改造五 | 前端代码抽离：dashboard.html 的 custom CSS（165行）→ custom.css，custom JS（domain/owner/reranker 约470行）→ custom.js，dashboard.py 白名单加 css/js serve，dashboard.html 留 `<link>`+`<script src>` 引用 + 侵入点注释 |
@@ -549,3 +552,85 @@ git merge --no-edit origin/main
 | 2026-06-25 | v2.3.8 | 清理临时文件 | 删除 `demo_owner_isolation.py`、`tests/test_reranker_debug.py`、`tests/test_reranker_compare.py`、`tests/test_output.txt` |
 | 更早 | — | reranker 引擎集成 | `reranker_engine.py` + `web/reranker.py` + search.py 接入 + dashboard 面板 |
 | 更早 | — | owner 隔离集成 | `owner_filter.py` + breath/hold owner 参数 + bucket_manager owner 读写 + breath 子模块过滤 |
+
+---
+
+## v2.3.22 同步记录（2026-06-29）
+
+### 背景
+
+- 上游 `https://github.com/P0luz/Ombre-Brain.git` 从 v2.3.18 升到 v2.3.22，跨 4 个版本（v2.3.19 / v2.3.20 / v2.3.21 / v2.3.22）。
+- 本地仓库 root commit 是 `27a3685 custom: v2.3.11 base`，与 upstream **无共同祖先**，`git merge upstream/main` 会报 `refusing to merge unrelated histories`。
+- 因此沿用 v2.3.16/17/18 的同步策略：**手动 file-by-file 同步**。
+
+### 上游主要变更（v2.3.18 → v2.3.22）
+
+| 版本 | 主要变更 |
+|------|---------|
+| v2.3.19 | 单连接器合并：`mcp_extra` 的 7 个工具回灌进主 `mcp`，对外只暴露一条 `/mcp` 路由（claude.ai 5 工具上限已解除）。前端移除 `/mcp-extra` 引用，新增 OAuth 鉴权开关 + 服务端口配置面板。小鸡彩蛋新增「天气 / 时间 / 心情」三件套（ObChickFlavor IIFE + tod- 色温 CSS） |
+| v2.3.20 | 小修小补（文档 / 配置 / 测试） |
+| v2.3.21 | letter author 重构：新增 `ai_name` 参数 + `get_ai_name()` util，`letter_write` 的 author 接受任意字符串（不再限定 user/claude），旧值 `claude` 归一化为 `ai_name` 的值。`_normalize_author` helper 抽出 |
+| v2.3.22 | 版本号 bump + 小修 |
+
+### 冲突文件与合并策略
+
+7 个文件同时带有 custom 改动和上游改动，采用「**保留双方**」策略（owner 轴 + 上游改动并存）：
+
+| 文件 | custom 改动 | 上游改动 | 合并方式 |
+|------|------------|---------|---------|
+| `src/server.py` | owner 参数 + reranker 注入 | mcp_extra 工具回灌到 mcp | 检出上游版，重新应用 owner 参数（7 个工具）+ reranker_engine 初始化 + 注入 |
+| `src/bucket_manager.py` | owner 读写 + search owner 过滤 | 无实质冲突 | 检出上游版，重新应用 owner_filter 导入 + create()/search() owner 逻辑 |
+| `src/tools/breath/search.py` | reranker 重排序 + owner 过滤 | 无实质冲突 | 检出上游版，重新应用 reranker 块 + filter_buckets_by_context_owner |
+| `src/tools/plan/core.py` | plan_create/letter_read owner 过滤 | `get_ai_name` + `_matches_query` 重构 | 检出上游版，重新应用 filter_buckets_by_context_owner（保留上游 ai_name 逻辑） |
+| `src/web/hooks.py` | breath-hook owner 过滤 | `_is_hook_request_authorized` 401 门 + `_latest(*authors)` 重写 | 检出上游版，重新应用 hook_owner_set 过滤 |
+| `src/web/letters.py` | /api/letters ?owner= + owner 字段 + 写信 owner | `_normalize_author` + ai_name 逻辑 | 检出上游版，重新应用 owner_set 过滤 + apply_owner_to_meta（保留上游 _normalize_author） |
+| `src/dehydrator.py` | 8 固定域 prompt 强化 | `_is_transient_error`/`_chat` 重试 | 上游已含 8 域但措辞为「可选」，改为「必须从以下 8 个固定域中选择」（保留上游重试逻辑） |
+
+### 用户决策（AskUserQuestion）
+
+1. **author 轴处理**：完全采用上游 v2.3.21 的 `ai_name` 体系，与我们的 owner 轴正交共存。
+2. **7 个冲突文件合并策略**：同意「保留双方」（owner 轴 + 上游改动并存）。
+3. **小鸡彩蛋（v2.3.19）**：保留 ObChickFlavor（天气 / 时间 / 心情 + tod- 色温 CSS）。
+
+### 文件操作汇总
+
+**Phase 1 — 直接检出上游版（33 个非 custom 文件）**：docs / config / deploy / tests / tools / 非 custom 的 src 文件（含 `config_api.py`，因 reranker 已迁出，零 custom 改动）。
+
+**Phase 2 — 小 diff 应用到 custom 文件（4 个）**：
+- `src/web/dashboard.py`：新增 `Cache-Control: no-cache, no-store, must-revalidate` 到 HTMLResponse；保留 custom.css/js 白名单
+- `src/web/buckets.py`：3 处注释 `Claude` → `AI`；保留 owner/protected/event_time 字段
+- `src/web/plans.py`：1 处注释 `Claude` → `AI`；保留 ?owner= + owner 字段
+- `frontend/dashboard.html`：Phase 4 单独处理
+
+**Phase 3 — 检出上游版后重新应用 custom（10 个 Python 文件）**：见上表 7 个 + `src/tools/breath/importance.py` / `surface.py` / `src/tools/_common.py`（这 3 个仅有 owner_filter 调用，无上游实质冲突）。
+
+**Phase 4 — dashboard.html 手动合并**：
+- 信件表单：`<option value="claude">` → `<option value="ai">`；placeholder `user_name` → `署名 name`；`<input type="date">` → `<button class="date-pill">` + 隐藏 input + 日期 label
+- 信件筛选：`<option value="claude">仅 AI</option>` → `<option value="ai">仅 AI</option>`
+- `_renderLetter()`：`who = ... : 'claude'` → `(l.author || 'AI')`；`accentColor = l.author === 'claude'` → `l.author !== 'user'`
+- 新增 `openDatePicker()` / `syncDateLabel()` helper + `.date-pill` CSS
+- `loadLogs()`：只显示文件名（全路径放 `meta.title`）
+- MCP 配置面板：移除 `/mcp-extra` 引用，改为单一 `/mcp`；新增 OAuth 鉴权开关 + 服务端口配置面板；`copyAllMcpUrls` / `_buildClaudeDesktopConfig` / `exportClaudeDesktopConfig` 改为单端点；新增 `saveMcpAuth` / `saveHostPort` JS；`loadConfig()` 加载 `mcp_require_auth` / `host_port` / `in_docker` + 端口提示 + readonly 显示
+- 文本：5 处 `Claude` → `AI`（调用 breath / 无法触发 / 无法恢复 / 收到通知）
+- 小鸡彩蛋：新增 ObChickFlavor IIFE（~100 行，时段 / 天气 / 心情）+ tod-dawn/day/dusk/night 色温 CSS
+
+**Phase 5 — 验证 + 文档 + 缓存**：
+- 全部 13 个修改过的 Python 文件通过 `python -m py_compile` 语法检查
+- 验证 custom 侵入点仍在：`<link custom.css?v=6>` / `<script custom.js?v=5>` / `domain-view` HTML / owner 筛选按钮 / `_ownerTagHtml` 调用 / `renderDomainTimeline` 钩子 / reranker 面板
+- bump 缓存版本：custom.css `?v=5` → `?v=6`，custom.js `?v=4` → `?v=5`
+- 更新本日志：修正 `config_api.py` 的 stale 信息（reranker 已迁到 `web/reranker.py`，config_api.py 零 custom 改动）
+
+### 不影响 custom 改造的验证
+
+| 验证项 | 结果 |
+|--------|------|
+| `src/owner_filter.py` 存在 | ✓ |
+| `src/reranker_engine.py` 存在 | ✓ |
+| `src/web/reranker.py` 存在 | ✓ |
+| `frontend/custom.css` / `custom.js` 存在 | ✓ |
+| `server.py` 7 个工具的 owner 参数 + set/reset 包装 | ✓ |
+| `server.py` reranker_engine 初始化 + 双重注入（_wsh.init_runtime + _tools_runtime.init） | ✓ |
+| `tools/breath/search.py` reranker 块 + owner 过滤 | ✓ |
+| `dashboard.html` custom.css/js 引用 + domain-view + owner 按钮 + _ownerTagHtml | ✓ |
+| `dashboard.py` custom.css/js 白名单 | ✓ |
+| 13 个 Python 文件 `py_compile` | ✓ 全部通过 |
