@@ -439,10 +439,106 @@ git merge --no-edit origin/main
 
 ---
 
+## 改造六：8 固定主题域 + UI 布局优化 + 数据恢复
+
+### 目的
+
+1. **8 固定主题域**：把 AI 写入记忆时的主题域收敛到 8 个固定域（`日常/人际/成长/身心/兴趣/数字/事务/内心`），避免 AI 持续新增子域导致筛选器爆炸。旧数据通过归一化映射表收敛到固定域。
+2. **域界面单行布局**：owner 按钮（全部/Alove/Pearl/Shared）+ 统计（`全部 · N 桶 · N 钉选`）合并为单行，宽屏单行显示，窄屏自动换行。
+3. **buckets 界面三行筛选器**：把原单行筛选器拆为三行：状态筛选（全部/钉选/Feel/未解决/已消化/归档）/ 8 固定主题域 / owner filter，并显示 owner 彩色标签。
+4. **时间线左移**：缩小时间线左侧日期列宽度和间距，减少留白。
+5. **数据恢复**：从 ECS 备份 zip 恢复 106 个记忆桶，全部 UTF-8 编码、`owner: alove`。
+
+### 设计原则
+
+- **UI 逻辑全部隔离在 custom.js/custom.css**：通过 monkey-patch 覆盖 `buildFilters`/`filterBuckets`/`renderBuckets`，dashboard.html 的 `<script>` 主体不改动（只改 HTML 结构 + 缓存版本号），最大化上游同步友好性。
+- **归一化兜底**：前端 `filterBuckets` 对域筛选做归一化（子域 → 固定域），即使 AI 偶尔写子域也能正确筛选。
+- **AI prompt 强制约束**：dehydrator.py / reclassify_api.py / import_memory.py 三处 prompt 都明确要求"只写顶层域名，不写括号内的子域"。
+
+### 修改文件
+
+#### 1. `frontend/custom.js`
+
+- **`FIXED_DOMAINS` 数组**：8 个固定主题域常量
+- **`DOMAIN_MAP` 映射表**：旧域 → 固定域（编程→数字、情绪→内心、家庭→人际 等 30+ 条）
+- **`normalizeDomain(d)`**：归一化函数
+- **Monkey-patch `buildFilters`**：原函数执行后调用 `restructureBucketFilters()` 重构为三行
+- **`restructureBucketFilters()`**：
+  - Row 1 状态：保留原 `.filter-btn`（非 `domain:` 前缀）
+  - Row 2 主题域：用 `FIXED_DOMAINS` 生成 `data-filter="domain:XXX"` 按钮
+  - Row 3 owner：`全部/Alove/Pearl/Shared` + 事件绑定
+- **Monkey-patch `filterBuckets`**：
+  - 域筛选归一化兜底：`currentFilter` 为 `domain:XXX` 时，把 `DOMAIN_MAP` 中所有映射到 XXX 的子域也加入匹配集
+  - owner 过滤：`_bucketOwnerFilter !== 'all'` 时按 `b.owner` 过滤
+- **（owner 徽章已删除）**：原 `renderBuckets` monkey-patch 插入 `.bucket-owner-dot` 的逻辑已按用户要求移除
+
+#### 2. `frontend/custom.css`
+
+- **`.domain-owner-row`**：owner 按钮 + 统计容器，`flex-wrap: wrap`（宽屏单行，窄屏换行）
+- **`@media (max-width: 560px)`**：手机端 owner 行垂直堆叠、按钮缩小
+- **`.tl-group`**：`--tl-date-w: 68px`（原 88px）、`--tl-gap: 8px`（原 12px）、`--tl-node-w: 18px`（原 20px）
+- **`.tl-date-main`**：字号 15px（原 17px）
+- **`.bucket-filters-row` / `.row-label`**：三行筛选器样式
+- **`.bucket-owner-row`**：owner 筛选行按钮样式
+- **`@media (max-width: 560px)`**：buckets 筛选按钮缩小
+
+#### 3. `frontend/dashboard.html`
+
+- **HTML 结构**：owner 按钮 + 统计包在 `.domain-owner-row` div 内（强制单行容器）
+- **缓存版本号**：`custom.css?v=5`、`custom.js?v=4`（每次 custom 文件改动都 bump）
+
+#### 4. `src/dehydrator.py`
+
+- **`EXTRACT_PROMPT`**：主题域说明改为"必须从以下 8 个固定域中选择 1~2 个（只写顶层域名，不写括号内的子域）"
+- **`ANALYZE_PROMPT`**：同上强化
+
+#### 5. `src/reclassify_api.py`
+
+- **`ANALYZE_PROMPT`**：同上强化
+
+#### 6. `src/import_memory.py`
+
+- **prompt**：同上强化
+
+#### 7. `buckets/` 数据目录（gitignored）
+
+- 从 `D:\Backup\...\ombre_export_1782406987.zip\buckets` 恢复 106 个 .md 文件
+- 全部 UTF-8 编码（无 BOM）
+- 全部添加 `owner: alove` 字段
+- 83 个文件的 domain 字段归一化到 8 固定域（编程→数字、情绪→内心 等）
+
+### 上游更新时需检查
+
+| 上游改动点 | 检查内容 |
+|-----------|---------|
+| `frontend/dashboard.html` 的 `<head>` / `<body>` 末尾 | `<link custom.css?v=N>` 和 `<script custom.js?v=N>` 引用是否被上游删除 |
+| `frontend/dashboard.html` 的域视图 HTML | `.domain-owner-row` 包裹结构是否被上游重构打乱 |
+| `dehydrator.py` / `reclassify_api.py` / `import_memory.py` 的 prompt | 上游是否改 prompt 文本导致 8 固定域约束丢失 |
+| `custom.js` 的 monkey-patch 目标函数 | 上游是否重命名 `buildFilters`/`filterBuckets`/`renderBuckets` 导致 patch 失效 |
+| `custom.css` 的 `.tl-group` 变量 | 上游是否改时间线结构导致 `--tl-date-w` 等变量失效 |
+
+### 降级安全性
+
+- `custom.js` 加载失败 → `buildFilters`/`filterBuckets` 走原逻辑 → buckets 界面回退到单行筛选器（功能正常，无三行布局）
+- `FIXED_DOMAINS` 与 AI 输出不匹配 → `DOMAIN_MAP` 兜底归一化 → 未映射的域原样保留（不报错）
+- 8 固定域 prompt 失效 → AI 写子域 → 前端 `filterBuckets` 归一化兜底 → 筛选仍正确
+
+### 数据恢复详情
+
+- **备份源**：`D:\Backup\Users\12075\Documents\xwechat_files\wxid_ej8ioygw1yqz12_4694\msg\file\2026-06\ombre_export_1782406987.zip`
+- **恢复内容**：106 个 .md 记忆桶文件
+- **编码处理**：PowerShell 解压时显式 UTF-8，写入时用 `[System.Text.UTF8Encoding]::new($false)` 避免 BOM
+- **owner 字段**：全部添加 `owner: alove`
+- **域归一化**：Python 脚本 `normalize_domains.py`（已删除，一次性使用）批量处理 83 个文件
+
+---
+
 ## 版本历史
 
 | 日期 | 上游版本 | 操作 | 说明 |
 |------|---------|------|------|
+| 2026-06-26 | v2.3.18 | 新增改造六 | 8 固定主题域（dehydrator/reclassify_api/import_memory prompt 强化 + 83 桶数据归一化）+ buckets 三行筛选器（monkey-patch buildFilters/filterBuckets）+ 域界面单行布局 + 时间线左移 + 手机端适配 + 数据恢复（106 桶从 ECS 备份恢复）+ owner 徽章（先加后删）|
+| 2026-06-26 | v2.3.18 | 上传 GitHub | 推送到 https://github.com/c83076768-cmd/remember.git (origin)，原 origin 重命名为 upstream（P0luz/Ombre-Brain.git）。清理 mock 数据 + 测试文件（2400 行删除），脱敏验证无 API key/个人路径 |
 | 2026-06-25 | v2.3.17 | 新增改造五 | 前端代码抽离：dashboard.html 的 custom CSS（165行）→ custom.css，custom JS（domain/owner/reranker 约470行）→ custom.js，dashboard.py 白名单加 css/js serve，dashboard.html 留 `<link>`+`<script src>` 引用 + 侵入点注释 |
 | 2026-06-25 | v2.3.17 | 新增改造四 | Plan/Letter owner 隔离：plan/letter_write/letter_read/dream 加 owner 参数 + plan/core.py 去重读取过滤 + _common auto-resolve 过滤 + dream 过滤 + hooks/plans/letters API 加 ?owner= + dashboard 加 owner 筛选 |
 | 2026-06-25 | v2.3.17 | 合并 v2.3.17 | OAuth 副连接器修复：`/.well-known/oauth-protected-resource/{path}` 严格匹配。冲突文件：`src/server.py`（手动合并 401 中间件 resource_metadata 动态路径）。不影响 custom 改造 |
