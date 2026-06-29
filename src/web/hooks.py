@@ -99,6 +99,8 @@ def register(mcp) -> None:
             all_buckets = await sh.bucket_mgr.list_all(include_archive=False)
             # pinned
             pinned = [b for b in all_buckets if b["metadata"].get("pinned") or b["metadata"].get("protected")]
+            if hook_owner_set:
+                pinned = [b for b in pinned if bucket_matches_owner(b["metadata"], hook_owner_set)]
             # top 2 unresolved by score
             unresolved = [b for b in all_buckets
                           if not b["metadata"].get("resolved", False)
@@ -106,6 +108,8 @@ def register(mcp) -> None:
                           and not b["metadata"].get("pinned")
                           and not b["metadata"].get("protected")
                           and not b["metadata"].get("dont_surface", False)]
+            if hook_owner_set:
+                unresolved = [b for b in unresolved if bucket_matches_owner(b["metadata"], hook_owner_set)]
             scored = sorted(unresolved, key=lambda b: sh.decay_engine.calculate_score(b["metadata"]), reverse=True)
 
             parts = []
@@ -179,6 +183,8 @@ def register(mcp) -> None:
                     if b["metadata"].get("type") == "i"
                     or "__i__" in (b["metadata"].get("tags") or [])
                 ]
+                if hook_owner_set:
+                    self_buckets = [b for b in self_buckets if bucket_matches_owner(b["metadata"], hook_owner_set)]
                 if self_buckets:
                     self_buckets.sort(
                         key=lambda b: b["metadata"].get("created", ""), reverse=True
