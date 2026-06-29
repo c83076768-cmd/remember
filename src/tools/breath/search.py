@@ -4,7 +4,7 @@ tools/breath/search.py — 有 query 的检索模式
 ========================================
 
 走 breath(query=...) 时进入这里。两路并行：bucket_manager 关键词检索 +
-embedding_engine 向量近邻，结果合并去重，逐条 dehydrate 后塞 token 预算。
+embedding_engine 向量近邻，结果合并去重，并行 dehydrate 后塞 token 预算。
 
 关键行为：
 - domain/valence/arousal 作为过滤参数传给 bucket_mgr.search
@@ -23,6 +23,7 @@ embedding_engine 向量近邻，结果合并去重，逐条 dehydrate 后塞 tok
 ========================================
 """
 
+import asyncio
 import random
 
 from .. import _runtime as rt
@@ -113,45 +114,70 @@ async def surface_search(
     except Exception as _rr_err:
         rt.logger.warning(f"[reranker] rerank failed, using original order: {_rr_err}")
 
-    results = []
-    token_used = 0
-    for bucket in matches:
-        if token_used >= max_tokens:
-            break
-        try:
+    # --- 并行脱水所有候选 ---
+    # 之前是 for 循环顺序 await，N 条 × 3s = N×3s（8 条要 24s）。
+    # 改成 asyncio.gather 并行执行，总耗时 ≈ 最慢的一条（~3-5s）。
+    # 脱水结果有 SQLite 缓存，已脱过的内容不会重复调 LLM。
+    # Semaphore 限制并发数，避免 Gemini 免费层 429。
+    _dehydrate_sem = asyncio.Semaphore(8)
+
+    async def _dehydrate_one(bucket):
+        async with _dehydrate_sem:
             clean_meta = {k: v for k, v in bucket["metadata"].items() if k != "tags"}
             meta_b = bucket["metadata"]
-            is_core = meta_b.get("pinned") or meta_b.get("protected") or meta_b.get("type") == "permanent"
+            is_core = (
+                meta_b.get("pinned")
+                or meta_b.get("protected")
+                or meta_b.get("type") == "permanent"
+            )
             # --- 记忆重构：根据当前情绪微调展示层 valence（±0.1）---
             if q_valence is not None and "valence" in clean_meta:
                 original_v = float(clean_meta.get("valence") or 0.5)
                 shift = (q_valence - 0.5) * 0.2
                 clean_meta["valence"] = max(0.0, min(1.0, original_v + shift))
             try:
-                summary = await rt.dehydrator.dehydrate(strip_wikilinks(bucket["content"]), clean_meta)
+                summary = await rt.dehydrator.dehydrate(
+                    strip_wikilinks(bucket["content"]), clean_meta
+                )
             except Exception as dehy_err:
                 if not is_core:
                     raise
-                rt.logger.warning(f"core search result dehydrate failed, using raw fallback: {dehy_err}")
-                summary = strip_wikilinks(bucket["content"])[:300].strip() or "（空记忆）"
-            summary_tokens = count_tokens_approx(summary)
-            if token_used + summary_tokens > max_tokens:
-                break
-            await rt.bucket_mgr.touch(bucket["id"])
-            if is_core:
-                summary = f"📌 [核心准则] [bucket_id:{bucket['id']}] {summary}"
-            elif bucket.get("vector_match"):
-                summary = f"[语义关联] [bucket_id:{bucket['id']}] {summary}"
-            else:
-                summary = f"[bucket_id:{bucket['id']}] {summary}"
-            results.append(summary)
-            token_used += summary_tokens
-        except Exception as e:
+                rt.logger.warning(
+                    f"core search result dehydrate failed, using raw fallback: {dehy_err}"
+                )
+                summary = (
+                    strip_wikilinks(bucket["content"])[:300].strip() or "（空记忆）"
+                )
+            return (bucket, summary, is_core)
+
+    dehydration_results = await asyncio.gather(
+        *[_dehydrate_one(b) for b in matches], return_exceptions=True
+    )
+
+    # 按 token 预算组装结果（脱水已全部完成，这里只做筛选）
+    results = []
+    token_used = 0
+    for item in dehydration_results:
+        if isinstance(item, Exception):
             rt.logger.error(
-                f"Failed to dehydrate search result / 检索结果脱水失败: {type(e).__name__}: {e}",
+                f"Failed to dehydrate search result / 检索结果脱水失败: "
+                f"{type(item).__name__}: {item}",
                 exc_info=True,
             )
             continue
+        bucket, summary, is_core = item
+        summary_tokens = count_tokens_approx(summary)
+        if token_used + summary_tokens > max_tokens:
+            break
+        await rt.bucket_mgr.touch(bucket["id"])
+        if is_core:
+            summary = f"📌 [核心准则] [bucket_id:{bucket['id']}] {summary}"
+        elif bucket.get("vector_match"):
+            summary = f"[语义关联] [bucket_id:{bucket['id']}] {summary}"
+        else:
+            summary = f"[bucket_id:{bucket['id']}] {summary}"
+        results.append(summary)
+        token_used += summary_tokens
 
     # --- 检索结果 < 3 时 40% 概率随机浮现 ---
     if len(matches) < 3 and random.random() < 0.4:
@@ -167,12 +193,24 @@ async def surface_search(
             ]
             if low_weight:
                 drifted = random.sample(low_weight, min(random.randint(1, 3), len(low_weight)))
-                drift_results = []
-                for b in drifted:
+
+                async def _dehydrate_drift(b):
                     clean_meta = {k: v for k, v in b["metadata"].items() if k != "tags"}
-                    summary = await rt.dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
-                    drift_results.append(f"[surface_type: random]\n{summary}")
-                results.append("--- 忽然想起来 ---\n" + "\n---\n".join(drift_results))
+                    summary = await rt.dehydrator.dehydrate(
+                        strip_wikilinks(b["content"]), clean_meta
+                    )
+                    return f"[surface_type: random]\n{summary}"
+
+                drift_results = await asyncio.gather(
+                    *[_dehydrate_drift(b) for b in drifted], return_exceptions=True
+                )
+                drift_texts = [
+                    r for r in drift_results if isinstance(r, str)
+                ]
+                if drift_texts:
+                    results.append(
+                        "--- 忽然想起来 ---\n" + "\n---\n".join(drift_texts)
+                    )
         except Exception as e:
             rt.logger.warning(f"Random surfacing failed / 随机浮现失败: {e}")
 
