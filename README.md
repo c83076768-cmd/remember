@@ -1,8 +1,12 @@
+感谢开发组成员：万世，小眠，鹤见
+
 # Ombre Brain
 
 一个给 Claude（或其它 MCP 客户端）用的长期情绪记忆系统。基于 Russell 效价/唤醒度坐标打标，Obsidian 做存储层，MCP 接入，带遗忘曲线和向量语义检索。
 
 A long-term emotional memory system for Claude (and any MCP client). Tags memories using Russell's valence/arousal coordinates, stores them as Obsidian-compatible Markdown, connects via MCP, with forgetting curve and vector semantic search.
+
+> **v2.4.0 noncommercial notice**: v2.4.0 architecture work is intended as source-available public code for personal, learning, research, and noncommercial self-hosting use. Commercial hosting, resale, renamed resale, SaaS resale, or selling modified v2.4.0 builds requires project-owner permission. See [LICENSE.v2.4.0-NONCOMMERCIAL-NOTICE.md](LICENSE.v2.4.0-NONCOMMERCIAL-NOTICE.md).
 
 > **开发者文档**：架构 / API / 配置细节请见 [docs/INTERNALS.md](docs/INTERNALS.md)。本 README 只关心『怎么把它跑起来用上』。
 >
@@ -265,8 +269,8 @@ Claude.ai                    Ombre Brain 服务器
    │── POST /oauth/authorize ─────>│ 302 (验证通过，生成授权码)
    │<─ redirect_uri?code=xxx ──────│
    │                               │
-   │── POST /oauth/token ─────────>│ 200 (交换 Bearer Token)
-   │<─ {access_token: "..."} ──────│
+   │── POST /oauth/token ─────────>│ 200 (交换 Bearer + refresh token)
+   │<─ {access_token, refresh_token} ─│
    │                               │
    │── POST /mcp (Bearer token) ──>│ 200 (MCP 会话建立)
    │<─ tools: [breath, hold...] ───│
@@ -275,7 +279,7 @@ Claude.ai                    Ombre Brain 服务器
 **注意事项**：
 - 弹出的授权页是你自己的 Ombre Brain 服务器，不是第三方
 - 密码就是你的 Dashboard 密码
-- Token 有效期 30 天，过期后会自动重新授权
+- Access token 长期有效，并支持 refresh token 自动续期；headless 环境不需要因 token 过期重新打开浏览器
 - 同一账号第一次授权后，之后的连接自动使用存储的 token
 
 #### 步骤 3：连接端点
@@ -439,8 +443,10 @@ docker compose -f deploy/docker-compose.yml up -d
 | `dehydration.model` | 脱水/打标 LLM 模型 | `gemini-2.0-flash` |
 | `dehydration.base_url` | LLM API 地址 | `https://generativelanguage.googleapis.com/v1beta/openai/` |
 | `dehydration.max_tokens` | 模型最大输出 token | `4096`（必须足够大，否则 JSON 截断导致域分类失败） |
+| `dehydration.timeout_seconds` | LLM 请求超时秒数 | 国内服务器连云端 API 可设 `120` 或更高 |
 | `embedding.api_format` | `gemini`（云端）/ `ollama`（本地 bge-m3）/ `openai_compat` | `gemini` |
 | `embedding.model` | embedding 模型 | 云端 `gemini-embedding-001` / 本地 `bge-m3` |
+| `embedding.timeout_seconds` | 向量化请求超时秒数 | 国内服务器连云端 API 可设 `120` 或更高 |
 | `decay.lambda` | 衰减速率，越大越快忘 | `0.05` |
 | `merge_threshold` | 合并相似度阈值 (0-100) | `75` |
 | `hooks.token` | `/breath-hook`、`/dream-hook` 的 HTTP token | 自托管公网建议设置 |
@@ -548,7 +554,7 @@ docker compose -f deploy/docker-compose.yml up -d
 | 工具调用显示「执行报错」但记忆其实写进去了 | **不是服务器问题**：服务端已成功返回，是 Claude.ai 连接器/渲染层把一次成功往返显示成了报错 | 用 `letter_read` 或 Dashboard 确认数据已落盘；服务端日志 `phase=ok` 即表示成功 |
 | 向量化不生效 / 语义检索没结果（压缩却正常） | base_url 漏 `/v1`（→404）、model 漏 `BAAI/` 前缀（→Model does not exist），或在 Dashboard 改了 key 没重建引擎 | 用 Dashboard 向量化区的「测试」按钮自查；按上面「用硅基流动…」一节填对 base_url 与 model；错误详情见设置页错误面板（OB-E001） |
 | 自有前端 / GPT / GLM 调用 MCP 工具被 401 卡住 | 默认强制 OAuth，自定义客户端不走该流程 | 设 `OMBRE_MCP_REQUIRE_AUTH=false`（或 `config.yaml: mcp_require_auth: false`）后重启；详见「方式三：接入自有前端」 |
-| Token 过期后无法自动重连 | Bearer token 默认 30 天有效 | 在 Claude.ai connector 设置里重新授权 |
+| Token 过期后无法自动重连 | 旧版本不支持 `refresh_token` grant，headless 环境只能重新打开授权页 | 更新到 v2.4.11+ 后重新授权一次，之后客户端可用 refresh token 自动续期 |
 | Dashboard 401 | 未登录 / 密码错 | 浏览器重新登录 |
 | `hold` / `grow` 报 API key 错误 | LLM key 未配置 | Dashboard → ③ 引擎 填入 Key 点「保存 Key」，立即热更新 |
 | 重启后记忆丢失 | Volume 没挂载 | 检查 docker-compose volume 配置 |
@@ -565,6 +571,7 @@ docker compose -f deploy/docker-compose.yml up -d
 - **反代/隧道要整主机名转发**：Cloudflare Tunnel / Nginx 按域名整体转发到 `localhost:端口`，覆盖所有路径即可。
 - **OpenAI 兼容向量化两个坑**：base_url 末尾要带 `/v1`（漏了 404）、model 要带完整前缀（如 `BAAI/bge-m3`，漏了报 Model does not exist）。填完用向量化区的「测试」按钮确认。
 - **改完 key / 配置点「保存」后再「测试」**：压缩和向量化各有独立的「测试」按钮，能用就用，别凭感觉。
+- **国内自托管偶发超时**：写记忆会同时调 LLM 打标和 embedding，国内服务器连云端 API 慢时可在 `config.yaml` 里设置 `dehydration.timeout_seconds` / `embedding.timeout_seconds`，或用环境变量 `OMBRE_COMPRESS_TIMEOUT_SECONDS` / `OMBRE_EMBED_TIMEOUT_SECONDS`。
 - **`dehydration.max_tokens` 别设太小**：Gemini 2.5 系列有思考 token 开销，太小会让 JSON 截断、记忆全标成「未分类」；用 `gemini-2.0-flash` 或把它设到 `4096` 以上。
 - **记忆数据要挂 volume**：不挂载（或 Render 免费层无持久磁盘）→ 重启记忆全丢。重要数据可再开 GitHub 同步兜底（embeddings.db 不上传，靠「重算所有向量」恢复）。
 - **切换向量化后端会全库重算**：云端 3072 维和本地 bge-m3 1024 维不通用，每次切换都会重算，别频繁来回切。

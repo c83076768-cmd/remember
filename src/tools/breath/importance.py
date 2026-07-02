@@ -33,6 +33,15 @@ def _bucket_has_tags(meta: dict, tag_filter: list) -> bool:
     return all(t in bucket_tags for t in tag_filter)
 
 
+def _is_core_bucket(bucket: dict) -> bool:
+    meta = bucket.get("metadata", {}) or {}
+    return bool(meta.get("pinned") or meta.get("protected") or meta.get("type") == "permanent")
+
+
+def _raw_core_fallback(content: str) -> str:
+    return strip_wikilinks(content)[:300].strip() or "（空记忆）"
+
+
 def _importance_of(bucket: dict) -> int:
     try:
         return int(bucket.get("metadata", {}).get("importance") or 0)
@@ -117,16 +126,13 @@ async def surface_by_importance(importance_min: int, max_tokens: int, tag_filter
                 summary = await rt.dehydrator.dehydrate(strip_wikilinks(b["content"]), clean_meta)
             except Exception as dehy_err:
                 rt.logger.warning(f"importance_min dehydrate failed / 脱水失败: {dehy_err}")
-                is_core = (
-                    b["metadata"].get("pinned")
-                    or b["metadata"].get("protected")
-                    or b["metadata"].get("type") == "permanent"
-                )
-                if is_core:
+                if _is_core_bucket(b):
                     # Core buckets must remain readable even when dehydration fails.
-                    summary = strip_wikilinks(b["content"])[:300].strip() or "（空记忆）"
+                    summary = _raw_core_fallback(b["content"])
                 else:
                     continue
+            if _is_core_bucket(b) and not str(summary or "").strip():
+                summary = _raw_core_fallback(b["content"])
             t = count_tokens_approx(summary)
             if token_used + t > max_tokens:
                 break

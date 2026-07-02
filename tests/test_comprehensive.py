@@ -222,10 +222,33 @@ def bm_config(tmp_path):
     }
 
 
+class _FakeEmbeddingEngine:
+    """最小化可用替身：embedding 现在是 create()/update(content=...) 的
+    强制依赖，这里的测试不验证 embedding 本身，给一个永远成功的假引擎。
+    （与 conftest.FakeEmbeddingEngine 同构但不跨文件 import——pytest 在
+    tests/ 是 package 的布局下，`from conftest import ...` 容易因为
+    sys.path 解析顺序在某些调用方式下找不到模块，保留各文件本地定义更稳妥。）
+    """
+
+    enabled = True
+
+    async def generate_and_store(self, bucket_id, content):
+        return True
+
+    def delete_embedding(self, bucket_id):
+        pass
+
+    async def get_embedding(self, bucket_id):
+        return [0.1, 0.2, 0.3]
+
+    async def search_similar(self, query, top_k=10):
+        return []
+
+
 @pytest.fixture
 def bucket_mgr(bm_config):
     from bucket_manager import BucketManager
-    return BucketManager(bm_config)
+    return BucketManager(bm_config, embedding_engine=_FakeEmbeddingEngine())
 
 
 class TestBucketManagerCreate:
@@ -630,7 +653,7 @@ def decay_config(tmp_path):
 def decay_engine(decay_config):
     from bucket_manager import BucketManager
     from decay_engine import DecayEngine
-    bm = BucketManager(decay_config)
+    bm = BucketManager(decay_config, embedding_engine=_FakeEmbeddingEngine())
     return DecayEngine(decay_config, bm)
 
 

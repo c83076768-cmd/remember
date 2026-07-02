@@ -44,6 +44,22 @@ from typing import Any
 import httpx
 from openai import AsyncOpenAI
 
+try:
+    from utils import positive_float
+except ImportError:  # pragma: no cover
+    from .utils import positive_float  # type: ignore
+
+try:
+    from provider_detect import (
+        normalize_model_for_endpoint,
+        strip_native_resource_prefix,
+    )
+except ImportError:  # pragma: no cover
+    from .provider_detect import (  # type: ignore
+        normalize_model_for_endpoint,
+        strip_native_resource_prefix,
+    )
+
 logger = logging.getLogger("ombre_brain.embedding")
 
 
@@ -51,7 +67,8 @@ logger = logging.getLogger("ombre_brain.embedding")
 # 常量
 # ============================================================
 
-_GEMINI_DEFAULT_DIM = 768
+_GEMINI_DEFAULT_DIM = 3072
+_API_TIMEOUT_SECONDS = 30.0
 
 # 输入截断长度
 _MAX_INPUT_CHARS = 2000
@@ -64,7 +81,7 @@ def _norm_model(name: str) -> str:
     硅基流动等）用裸名——同一模型仅前缀不同。剥掉前缀 + 去空白 + 小写，
     让 model_name 的对账只看真实身份，不被书写约定误伤（修 OB-W005 假阳性）。
     """
-    return (name or "").strip().removeprefix("models/").strip().lower()
+    return strip_native_resource_prefix(name).lower()
 
 
 def _humanize_api_error(e: Exception) -> str:
@@ -141,15 +158,15 @@ class APIEmbeddingEngine(BaseEmbeddingEngine):
         base_url: str,
         model: str,
         dim: int = _GEMINI_DEFAULT_DIM,
+        timeout_seconds: float = _API_TIMEOUT_SECONDS,
     ):
         self.api_key = api_key
         self.base_url = base_url
-        # Gemini 的 OpenAI-compat embeddings 端点内部转成 BatchEmbedContentsRequest，
-        # 要求 model 形如 "models/gemini-embedding-001"；裸名会报
-        # "unexpected model name format"（OB-E001）。这里对 Gemini 端点自动补前缀。
-        if "generativelanguage.googleapis.com" in (base_url or "") and not model.startswith("models/"):
-            model = f"models/{model}"
-        self.model = model
+        self.timeout_seconds = positive_float(timeout_seconds, _API_TIMEOUT_SECONDS)
+        # Google's OpenAI-compatible endpoint wants OpenAI-style bare model IDs.
+        # Native REST uses the "models/" resource prefix, so normalize pasted
+        # native IDs here before calling embeddings.create().
+        self.model = normalize_model_for_endpoint(model, base_url)
         self._dim = dim
         # 本地/容器 ollama 必须绕过系统代理。httpx 默认 trust_env=True 会读
         # 环境变量「以及 Windows 注册表/WinINET 系统代理」，于是 Clash/V2Ray 等
@@ -162,7 +179,7 @@ class APIEmbeddingEngine(BaseEmbeddingEngine):
         self._client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
-            http_client=httpx.AsyncClient(timeout=30.0, trust_env=not _is_local_host),
+            http_client=httpx.AsyncClient(timeout=self.timeout_seconds, trust_env=not _is_local_host),
         )
 
     def model_name(self) -> str:
@@ -231,10 +248,17 @@ class GeminiNativeEmbeddingEngine(BaseEmbeddingEngine):
     端点：POST .../v1beta/models/{model}:embedContent?key={api_key}
     """
 
-    def __init__(self, api_key: str, model: str, dim: int = _GEMINI_DEFAULT_DIM):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        dim: int = _GEMINI_DEFAULT_DIM,
+        timeout_seconds: float = _API_TIMEOUT_SECONDS,
+    ):
         self.api_key = api_key
         self.model = model
         self._dim = dim
+        self.timeout_seconds = positive_float(timeout_seconds, _API_TIMEOUT_SECONDS)
 
     def model_name(self) -> str:
         return self.model
@@ -253,11 +277,11 @@ class GeminiNativeEmbeddingEngine(BaseEmbeddingEngine):
         if not text or not text.strip():
             return []
         import httpx
-        model_id = self.model.removeprefix("models/").strip()
+        model_id = strip_native_resource_prefix(self.model)
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_id}:embedContent"
         payload = {"content": {"parts": [{"text": text[:_MAX_INPUT_CHARS]}]}}
         try:
-            async with httpx.AsyncClient(timeout=30.0) as c:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds) as c:
                 r = await c.post(url, params={"key": self.api_key}, json=payload)
                 r.raise_for_status()
             values = r.json().get("embedding", {}).get("values", [])
@@ -295,7 +319,9 @@ class EmbeddingEngine:
     """SQLite 存储 + 搜索 + 元数据校验，持有一颗 BaseEmbeddingEngine。"""
 
     def __init__(self, config: dict):
+        self.v3_runtime = None
         embed_cfg = config.get("embedding", {}) or {}
+        timeout_seconds = positive_float(embed_cfg.get("timeout_seconds"), _API_TIMEOUT_SECONDS)
 
         # 解析 backend：env > config > 默认 api
         self.backend = "api"
@@ -361,26 +387,42 @@ class EmbeddingEngine:
                 dim = int(embed_cfg.get("dim") or 1024)
             except (TypeError, ValueError):
                 dim = 1024
-            self._backend = APIEmbeddingEngine(api_key=api_key, base_url=base_url, model=model, dim=dim)
+            self._backend = APIEmbeddingEngine(
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                dim=dim,
+                timeout_seconds=timeout_seconds,
+            )
         elif api_format == "gemini":
             model = embed_cfg.get("model") or "gemini-embedding-001"
-            self._backend = GeminiNativeEmbeddingEngine(api_key=api_key, model=model)
+            self._backend = GeminiNativeEmbeddingEngine(
+                api_key=api_key,
+                model=model,
+                timeout_seconds=timeout_seconds,
+            )
         else:
             model = embed_cfg.get("model") or "gemini-embedding-001"
             base_url = (
                 (embed_cfg.get("base_url") or "").strip()
                 or "https://generativelanguage.googleapis.com/v1beta/openai/"
             )
-            # 读 dim 并透传，否则任何非 768 维的 OpenAI 兼容模型（如硅基流动 BAAI/bge-m3=1024）
-            # 都会被 APIEmbeddingEngine 的默认 768 钉死 → 启动时 db(dim=1024) vs current(dim=768)
+            # 读 dim 并透传，否则非默认维度的 OpenAI 兼容模型（如硅基流动 BAAI/bge-m3=1024）
+            # 会被 APIEmbeddingEngine 的默认 Gemini 维度钉死 → 启动时 db dim vs current dim 不一致。
             # 报 OB-W005、逼用户去 migrate（即便 config.yaml 已写 embedding.dim: 1024）。
-            # fallback 用 _GEMINI_DEFAULT_DIM（768）而非 1024：本分支默认端点/模型就是 Gemini，
-            # 没显式配 dim 时必须保持 768，否则反过来把默认 Gemini 路径打错。
+            # fallback 用 _GEMINI_DEFAULT_DIM 而非 1024：本分支默认端点/模型就是 Gemini，
+            # 没显式配 dim 时必须保持 Gemini 官方默认维度，否则会把默认 Gemini 路径打错。
             try:
                 dim = int(embed_cfg.get("dim") or _GEMINI_DEFAULT_DIM)
             except (TypeError, ValueError):
                 dim = _GEMINI_DEFAULT_DIM
-            self._backend = APIEmbeddingEngine(api_key=api_key, base_url=base_url, model=model, dim=dim)
+            self._backend = APIEmbeddingEngine(
+                api_key=api_key,
+                base_url=base_url,
+                model=model,
+                dim=dim,
+                timeout_seconds=timeout_seconds,
+            )
 
         self.model = self._backend.model_name()
         self.enabled = True
@@ -388,6 +430,9 @@ class EmbeddingEngine:
         # 5) 初始化 SQLite + 校验元数据
         self._init_db()
         self._check_meta_consistency()
+
+    def attach_v3_runtime(self, runtime) -> None:
+        self.v3_runtime = runtime
 
     # -------------------- SQLite 初始化 --------------------
 

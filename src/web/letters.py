@@ -53,7 +53,6 @@ def register(mcp) -> None:
         if err:
             return err
         author = request.query_params.get("author", "").strip()
-        # custom: owner 隔离 — 不传 ?owner= 时返回全部（人类视角），传了则筛选
         owner_set = parse_owner_param(request.query_params.get("owner", ""))
         try:
             all_b = await sh.bucket_mgr.list_all(include_archive=False)
@@ -84,7 +83,7 @@ def register(mcp) -> None:
                     "date": m.get("letter_date") or m.get("created", "")[:10],
                     "created": m.get("created", ""),
                     "content": strip_wikilinks(b.get("content", "")),
-                    "owner": get_bucket_owner(m),  # custom: owner 字段
+                    "owner": get_bucket_owner(m),
                 })
             return JSONResponse({"letters": result, "total": len(result)})
         except Exception as e:
@@ -127,7 +126,6 @@ def register(mcp) -> None:
             extra["title"] = title
         if date:
             extra["letter_date"] = date
-        # custom: owner 隔离 — 写信时写入归属（不传则由上下文/默认 shared 决定）
         owner = (body.get("owner") or "").strip()
         apply_owner_to_meta(extra, owner if owner else None)
         try:
@@ -216,13 +214,13 @@ def register(mcp) -> None:
 
     @mcp.custom_route("/api/letter/{letter_id}", methods=["DELETE"])
     async def api_letter_delete(request: Request) -> Response:
-        """Hard delete a letter. Requires ?confirm=true."""
+        """Delete a letter to archive. Requires ?confirm=true."""
         from starlette.responses import JSONResponse
         err = sh._require_auth(request)
         if err:
             return err
         if request.query_params.get("confirm", "").lower() not in ("true", "1", "yes"):
-            return JSONResponse({"error": "confirm=true required"}, status_code=400)
+            return JSONResponse({"error": "confirm=true required for delete-to-archive"}, status_code=400)
         letter_id = request.path_params["letter_id"]
         bucket = await sh.bucket_mgr.get(letter_id)
         if not bucket or bucket["metadata"].get("type") != "letter":

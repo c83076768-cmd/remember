@@ -415,6 +415,43 @@
     box-shadow: 0 0 0 3px var(--accent-glow), inset 2px 2px 4px var(--shadow-dark-subtle);
   }
 
+  /* 日期「按钮」：一个拟态化凸起的 <button>，点它由 JS 唤起原生日期选择器。
+     里面藏一个 <input type="date"> 只用来存值（id=letter-date，sendLetter 读它），
+     不负责点击，也不显示任何原生控件——彻底告别小图标重叠。
+     按钮上的文字由 #letter-date-label 显示「请选择日期」或已选日期。 */
+  .config-row button.date-pill {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    height: 39px;
+    padding: 0 14px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    text-align: left;
+    color: var(--text);
+    background: var(--bg);
+    box-shadow: 4px 4px 8px var(--shadow-dark-subtle), -4px -4px 8px var(--shadow-light);
+    transition: all 0.2s ease;
+  }
+  .config-row button.date-pill:hover {
+    box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
+  }
+  .config-row button.date-pill:active {
+    box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light);
+  }
+  .config-row button.date-pill:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px var(--accent-glow), 4px 4px 8px var(--shadow-dark-subtle), -4px -4px 8px var(--shadow-light);
+  }
+  #letter-date-label {
+    pointer-events: none;
+    color: var(--text-dim);
+  }
+
   .btn-primary {
     padding: 12px 28px;
     background: var(--accent);
@@ -924,7 +961,7 @@
   /* 通用裸 <button>（大量内联小按钮）→ 统一成中性实体键，避免风格冲突。
      仅用简单类否定，保证选择器在所有引擎可解析；与 .header button / .close-btn 的
      专属规则靠各自 !important 协调。 */
-  button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.tab):not(.filter-btn):not(.close-btn):not(.domain-owner-btn) {
+  button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.tab):not(.filter-btn):not(.close-btn) {
     border: none !important;
     border-radius: 10px !important;
     background: var(--surface-solid);
@@ -933,8 +970,8 @@
     transition: all .14s ease;
     cursor: pointer;
   }
-  button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.tab):not(.filter-btn):not(.close-btn):not(.domain-owner-btn):hover { color: var(--accent); transform: translateY(-1px); }
-  button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.tab):not(.filter-btn):not(.close-btn):not(.domain-owner-btn):active { transform: translateY(1px); box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -2px -2px 5px var(--shadow-light); }
+  button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.tab):not(.filter-btn):not(.close-btn):hover { color: var(--accent); transform: translateY(-1px); }
+  button:not(.btn-primary):not(.btn-secondary):not(.btn-danger):not(.tab):not(.filter-btn):not(.close-btn):active { transform: translateY(1px); box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -2px -2px 5px var(--shadow-light); }
   /* 图标独占按钮：统一 36×36 正方形实体键 */
   button:has(> i[data-lucide]:only-child) {
     min-width: 36px !important; height: 36px !important;
@@ -1687,46 +1724,8 @@
     transition: opacity 0.3s;
   }
   .self-overlay.show { opacity: 1; pointer-events: auto; }
-
-
-  /* v2.3.22: 写信日期改拟态化按钮 — 按钮本身可点，
-     里面藏一个 <input type="date"> 只用来存值（id=letter-date，sendLetter 读它），
-     按钮上的文字由 #letter-date-label 显示「请选择日期」或已选日期。 */
-  .config-row button.date-pill {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    box-sizing: border-box;
-    height: 39px;
-    padding: 0 14px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 13px;
-    text-align: left;
-    color: var(--text);
-    background: var(--bg);
-    box-shadow: 4px 4px 8px var(--shadow-dark-subtle), -4px -4px 8px var(--shadow-light);
-    transition: all 0.2s ease;
-  }
-  .config-row button.date-pill:hover {
-    box-shadow: 5px 5px 10px var(--shadow-dark), -5px -5px 10px var(--shadow-light);
-  }
-  .config-row button.date-pill:active {
-    box-shadow: inset 3px 3px 6px var(--shadow-dark-subtle), inset -3px -3px 6px var(--shadow-light);
-  }
-  .config-row button.date-pill:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 3px var(--accent-glow), 4px 4px 8px var(--shadow-dark-subtle), -4px -4px 8px var(--shadow-light);
-  }
-  #letter-date-label {
-    pointer-events: none;
-    color: var(--text-dim);
-  }
-
-  </style>
-  <link rel="stylesheet" href="/static/custom.css?v=6">
+</style>
+<link rel="stylesheet" href="/static/custom.css?v=7">
 </head>
 <body>
 
@@ -1790,6 +1789,12 @@
   <div class="tab" data-tab="import"><span>导入</span><span class="tab-en">Import</span></div>
   <div class="tab" data-tab="logs"><span>日志</span><span class="tab-en">Logs</span></div>
   <div class="tab" data-tab="settings"><span>设置</span><span class="tab-en">Settings</span></div>
+  <!-- v3-debug tab 暂时隐藏：后端 /api/v3/debug/* 路由已就位（只读、不写数据），
+       但 v3_runtime 尚未接入（src/ombrebrain/ 架构核心未挂载到 server.py），
+       现在打开只会看到空列表，不报错但没数据。见 docs/TODO_V3_DEBUG_SYNC.md。
+       v3_runtime 接入后，取消下一行注释即可恢复入口。
+  <div class="tab" data-tab="v3-debug"><span>2.4.0 Debug</span><span class="tab-en">Replay</span></div>
+  -->
   <div class="tab-spacer"></div>
   <div class="tab" data-tab="about"><span>关于</span><span class="tab-en">About</span></div>
 </div>
@@ -1980,6 +1985,20 @@
       </div>
     </div>
 
+    <div id="import-preflight-panel" style="display:none;margin:14px 0;padding:12px 14px;background:var(--surface-solid);border-radius:8px;font-size:12px;line-height:1.7;box-shadow:inset 2px 2px 5px var(--shadow-dark-subtle),inset -2px -2px 4px var(--shadow-light);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+        <strong style="font-size:13px;">导入预检</strong>
+        <span id="import-preflight-file" style="color:var(--text-light);word-break:break-all;"></span>
+      </div>
+      <div id="import-preflight-summary" style="color:var(--text-dim);">等待文件…</div>
+      <div id="import-preflight-warnings" style="display:none;color:var(--warning);margin-top:6px;"></div>
+      <pre id="import-preflight-preview" style="display:none;margin-top:8px;padding:10px;background:var(--surface);border-radius:6px;max-height:160px;overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:11px;color:var(--text-dim);font-family:'Share Tech Mono','SF Mono',Consolas,monospace;"></pre>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;">
+        <button id="import-start-confirm-btn" onclick="confirmStartImport()" style="display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:32px;"><i data-lucide="play"></i> 开始导入</button>
+        <button onclick="clearImportPreflight()" style="display:inline-flex;align-items:center;gap:5px;padding:0 12px;height:32px;"><i data-lucide="x"></i> 取消</button>
+      </div>
+    </div>
+
     <div id="import-progress" style="display:none;margin:20px 0;">
       <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
         <span id="import-status-text">准备中…</span>
@@ -2074,6 +2093,27 @@
 
 <!-- Settings Tab View -->
 <!-- ====== iter 1.7 §G: Plan tab — kanban-style list with status + change history ====== -->
+<div class="content" id="v3-debug-view" style="display:none">
+  <div style="display:grid;grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:16px;align-items:start;">
+    <div class="config-section" style="margin:0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">
+        <h3 style="margin:0;">2.4.0 Debug</h3>
+        <button onclick="loadV3Debug()" title="Refresh" style="padding:7px 10px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="refresh-cw"></i></button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input id="v3-debug-module" type="text" placeholder="module" style="min-width:0;flex:1;font-size:12px;padding:8px 10px;">
+        <input id="v3-debug-operation" type="text" placeholder="operation" style="min-width:0;flex:1;font-size:12px;padding:8px 10px;">
+      </div>
+      <div id="v3-debug-meta" style="font-size:12px;color:var(--text-dim);min-height:18px;margin-bottom:8px;"></div>
+      <div id="v3-debug-list" style="display:flex;flex-direction:column;gap:8px;max-height:58vh;overflow:auto;"></div>
+    </div>
+    <div class="config-section" style="margin:0;min-height:340px;">
+      <h3 style="margin-bottom:12px;">Replay</h3>
+      <div id="v3-debug-detail" style="font-size:12px;line-height:1.65;color:var(--text);"></div>
+    </div>
+  </div>
+</div>
+
 <div class="content" id="plan-view" style="display:none">
   <div style="max-width:920px;margin:0 auto;">
     <div class="config-section">
@@ -2288,7 +2328,7 @@
           <span id="settings-human-msg" style="font-size:12px;color:var(--text-dim);"></span>
         </div>
         <div style="font-size:12px;color:var(--text-dim);margin:10px 0 6px;line-height:1.6;">
-          已经改过名、但旧记忆里仍残留旧称呼（如「用户」）？在这里填旧词，一键替换为当前称呼。
+          已经改过名、但旧记忆里仍残留旧称呼（如「用户」）？在这里填旧词，一键替换为当前称呼：
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <input type="text" id="settings-human-from" placeholder="用户" maxlength="20" style="width:120px;" />
@@ -2393,6 +2433,19 @@
       </div>
 
       <div style="margin-bottom:18px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:6px;">系统体检</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.6;">
+          快速检查本地配置、数据目录、向量化、GitHub 备份和访问控制，不会主动请求外部 API。
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+          <button onclick="loadSystemDiagnostics()" title="运行体检" style="font-size:12px;padding:0 12px;height:32px;display:inline-flex;align-items:center;gap:5px;"><i data-lucide="activity"></i> 一键体检</button>
+          <span id="system-diagnostics-summary" style="font-size:12px;color:var(--text-dim);">尚未运行</span>
+          <span id="system-diagnostics-updated" style="font-size:11px;color:var(--text-light);"></span>
+        </div>
+        <div id="system-diagnostics-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+
+      <div style="margin-bottom:18px;">
         <div style="font-weight:600;font-size:13px;margin-bottom:6px;">修复钉选计数</div>
         <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;line-height:1.6;">
           若「永久桶计数」明显大于面板里实际的钉选数（取消钉选后计数不减、钉新桶老报上限），
@@ -2483,6 +2536,13 @@
           </select>
         </div>
         <div id="emb-preset-hint" style="margin-top:-4px;margin-bottom:10px;padding-left:122px;font-size:11px;color:var(--text-light);line-height:1.6;">先选服务商，会自动填好 Base URL 和正确的模型名（省得填错 model 名报 400）。</div>
+        <div style="margin:0 0 12px;padding:9px 12px;background:rgba(184,153,98,0.08);border-radius:6px;font-size:11px;color:var(--text-light);line-height:1.8;">
+          <b style="color:var(--text-dim);">怎么选（按服务器所在地区）</b><br>
+          · <b>美国 / 海外服务器</b>：建议用 Gemini 云端，就近低延迟。<br>
+          · <b>中国大陆服务器</b>：建议用硅基流动 SiliconFlow，国内域名直连快。<br>
+          · <b>最优、最稳</b>：本地 Ollama bge-m3，离线不出网、无跨境延迟、不耗 key 额度。<br>
+          · 跨区域用（如美国机连国内 API）务必给服务器挂梯子 / 代理，否则易超时或报 400。
+        </div>
         <div id="emb-key-notice" style="display:none;font-size:12px;color:var(--warning);margin-bottom:10px;padding:7px 10px;background:rgba(184,153,98,0.08);border-radius:4px;line-height:1.6;">
           <svg class="icon icon-warn" aria-hidden="true"><use href="#i-warn"></use></svg> Ombre Brain 必须配置向量化 Embedding API Key 才能正常使用。未配置时语义检索完全不可用，记忆系统无法运作。请在下方填入 Key 并点击「保存 Key」，保存后立即生效。
         </div>
@@ -2706,14 +2766,20 @@
     <div class="config-section" id="sec-env">
       <h3>⑤ 环境变量</h3>
       <p style="font-size:12px;color:var(--text-light);margin:0 0 16px;line-height:1.6;">
-        这里改完保存会立即生效并写入 <code>config.yaml</code>（重启后仍有效）。<br>
+        这里改完保存会立即生效并写入 <code>config.yaml</code> / <code>.env</code>（重启后仍有效）。<br>
         API Key 字段显示脱敏值；输入新值才会覆盖，留空 = 不动。
       </p>
-      <!-- 平台环境变量覆盖警告：当 OMBRE_* 由平台（如 Zeabur）env 注入时，
-           优先级高于 config.yaml，重启会覆盖这里保存的值。由 refreshEnvShadowWarning 填充。 -->
+      <!-- 平台环境变量冲突告警：当 OMBRE_* / AI_NAME 由平台（如 Zeabur）env 注入时，
+           它优先级高于 config.yaml / .env，重启会覆盖这里保存的值。由 refreshEnvConfig 填充。 -->
       <div id="env-shadow-warning" style="display:none;background:rgba(200,80,60,0.10);
         border:1px solid var(--negative);border-radius:8px;padding:10px 12px;margin:0 0 16px;
         font-size:12px;line-height:1.7;color:var(--negative);"></div>
+
+      <div style="margin-bottom:18px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">身份显示</div>
+        <div class="form-row"><label>AI 名称</label><input type="text" id="env-ai-name" placeholder="留空 = AI" maxlength="40" style="font-family:monospace;" /></div>
+        <div style="margin-top:-4px;padding-left:122px;font-size:11px;color:var(--text-light);">用于 OAuth 授权页、信件署名等面向用户的 AI 显示名。</div>
+      </div>
 
       <div style="margin-bottom:18px;">
         <div style="font-size:13px;font-weight:600;margin-bottom:8px;">压缩 LLM（脱水 / 打标 / 合并）</div>
@@ -2733,6 +2799,7 @@
             <option value="anthropic">Anthropic 原生</option>
           </select>
         </div>
+        <div class="form-row"><label>Timeout</label><input type="number" id="env-compress-timeout" min="1" step="1" placeholder="120" style="font-family:monospace;" /></div>
       </div>
 
       <div style="margin-bottom:18px;">
@@ -2740,6 +2807,7 @@
         <div class="form-row"><label>API Key</label><input type="password" id="env-embed-key" placeholder="留空 = 不修改" autocomplete="new-password" style="font-family:monospace;" /></div>
         <div class="form-row"><label>Base URL</label><input type="text" id="env-embed-base" placeholder="例：https://generativelanguage.googleapis.com/v1beta/openai/" style="font-family:monospace;" /></div>
         <div class="form-row"><label>Model</label><input type="text" id="env-embed-model" placeholder="例：gemini-embedding-001" style="font-family:monospace;" /></div>
+        <div class="form-row"><label>Timeout</label><input type="number" id="env-embed-timeout" min="1" step="1" placeholder="120" style="font-family:monospace;" /></div>
       </div>
 
       <div style="margin-bottom:18px;">
@@ -3493,6 +3561,67 @@ async function loadSettingsStatus() {
   await loadTunnelStatus();
 }
 
+function diagnosticStatusLabel(status) {
+  if (status === 'ok') return '正常';
+  if (status === 'warning') return '提醒';
+  if (status === 'error') return '需处理';
+  return status || '未知';
+}
+
+function diagnosticStatusColor(status) {
+  if (status === 'ok') return 'var(--positive,#87A987)';
+  if (status === 'warning') return 'var(--warning,#B89762)';
+  if (status === 'error') return 'var(--negative,#BE5A41)';
+  return 'var(--text-dim)';
+}
+
+function renderDiagnosticCheck(check) {
+  const color = diagnosticStatusColor(check.status);
+  const details = check.details || {};
+  const detailText = Object.keys(details).map(function (key) {
+    const val = details[key];
+    if (val === null || val === undefined || val === '') return '';
+    return '<span><b>' + esc(key) + '</b>: ' + esc(String(val)) + '</span>';
+  }).filter(Boolean).join(' · ');
+  return '<div style="border-left:3px solid ' + color + ';padding:9px 11px;background:var(--surface-solid);border-radius:8px;font-size:12px;line-height:1.6;box-shadow:inset 1px 1px 3px var(--shadow-dark-subtle),inset -1px -1px 3px var(--shadow-light);">'
+    + '<div style="display:flex;align-items:center;gap:8px;justify-content:space-between;flex-wrap:wrap;">'
+    + '<strong style="font-size:13px;color:var(--text);">' + esc(check.label || check.id || '检查项') + '</strong>'
+    + '<span style="color:' + color + ';font-weight:600;">' + diagnosticStatusLabel(check.status) + '</span>'
+    + '</div>'
+    + '<div style="color:var(--text-dim);margin-top:3px;">' + esc(check.message || '') + '</div>'
+    + (check.action ? '<div style="color:var(--accent);margin-top:3px;">建议：' + esc(check.action) + '</div>' : '')
+    + (detailText ? '<div style="color:var(--text-light);margin-top:4px;word-break:break-all;">' + detailText + '</div>' : '')
+    + '</div>';
+}
+
+async function loadSystemDiagnostics() {
+  const summaryEl = document.getElementById('system-diagnostics-summary');
+  const listEl = document.getElementById('system-diagnostics-list');
+  const updatedEl = document.getElementById('system-diagnostics-updated');
+  if (!summaryEl || !listEl) return;
+  summaryEl.style.color = 'var(--text-dim)';
+  summaryEl.textContent = '体检中…';
+  listEl.innerHTML = '';
+  try {
+    const resp = await authFetch('/api/system/diagnostics');
+    if (!resp) return;
+    const d = await readJsonSafe(resp);
+    const s = d.summary || {};
+    const checks = d.checks || [];
+    const ok = d.ok !== false;
+    summaryEl.style.color = ok ? 'var(--positive,#87A987)' : 'var(--negative,#BE5A41)';
+    summaryEl.innerHTML = (ok ? _SV.ok + ' ' : _SV.warn + ' ')
+      + '正常 ' + (s.ok || 0) + ' · 提醒 ' + (s.warning || 0) + ' · 需处理 ' + (s.error || 0);
+    listEl.innerHTML = checks.length
+      ? checks.map(renderDiagnosticCheck).join('')
+      : '<div style="font-size:12px;color:var(--text-dim);">没有返回体检项。</div>';
+    if (updatedEl) updatedEl.textContent = '刚刚刷新 ' + new Date().toLocaleTimeString();
+  } catch(e) {
+    summaryEl.style.color = 'var(--negative)';
+    summaryEl.textContent = '体检失败：' + (e && e.message ? e.message : e);
+  }
+}
+
 // 修复钉选计数：先 GET 预演拿孤儿数 → 确认 → POST 实际降级。
 async function fixPinnedDesync() {
   const msgEl = document.getElementById('fix-pinned-msg');
@@ -3813,7 +3942,7 @@ async function saveHostVault() {
     const d = await resp.json();
     if (resp.ok) {
       msg.style.color = 'var(--accent)';
-      msg.textContent = '已保存 → ' + (d.env_file || '.env') + '（需重启容器生效）';
+      msg.textContent = d.message || ('已保存 → ' + (d.env_file || '.env') + '（需重启容器生效）');
     } else {
       msg.style.color = 'var(--negative)';
       msg.textContent = d.error || '保存失败';
@@ -3876,6 +4005,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.getElementById('plan-view').style.display = target === 'plan' ? '' : 'none';
     document.getElementById('import-view').style.display = target === 'import' ? '' : 'none';
     document.getElementById('logs-view').style.display = target === 'logs' ? '' : 'none';
+    document.getElementById('v3-debug-view').style.display = target === 'v3-debug' ? '' : 'none';
     document.getElementById('settings-view').style.display = target === 'settings' ? '' : 'none';
     document.getElementById('letters-view').style.display = target === 'letters' ? '' : 'none';
     document.getElementById('anchors-view').style.display = target === 'anchors' ? '' : 'none';
@@ -3887,9 +4017,11 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (target === 'plan') loadPlans();
     if (target === 'import') { pollImportStatus(); loadImportResults(); }
     if (target === 'logs') { loadLogs(); loadOBErrors(); }
+    if (target === 'v3-debug') loadV3Debug();
     if (target === 'settings') {
       // 任务D：合并 config + settings 后，切换到「设置」时一次性加载所有面板数据
       loadSettingsStatus();
+      loadSystemDiagnostics();
       loadHumanName();
       loadConfig();
       refreshEnvConfig();
@@ -4124,7 +4256,7 @@ async function showDetail(id) {
         '<button onclick="bucketResolve(\'' + id + '\')" class="icon-btn">' + (meta.resolved ? '<i data-lucide="rotate-ccw"></i> 取消已解决' : '<i data-lucide="check"></i> 标记已解决') + '</button>' +
         '<button onclick="bucketForget(\'' + id + '\')" class="icon-btn">' + (meta.dont_surface ? '<i data-lucide="eye"></i> 重新允许浮现' : '<i data-lucide="moon-off"></i> 主动遗忘') + '</button>' +
         '<button onclick="bucketArchive(\'' + id + '\')" class="icon-btn"><i data-lucide="archive"></i> 归档</button>' +
-        '<button onclick="bucketDelete(\'' + id + '\')" class="icon-btn" style="color:#b85c3c;"><i data-lucide="trash-2"></i> 彻底删除</button>' +
+        '<button onclick="bucketDelete(\'' + id + '\')" class="icon-btn" style="color:#b85c3c;"><i data-lucide="trash-2"></i> 删除到档案</button>' +
       '</div>' +
       '<div class="detail-content">' + esc(b.content) + '</div>' +
       renderEditForm(id, Object.assign({}, meta, {_content_for_edit: b.content}));
@@ -4217,6 +4349,8 @@ async function bucketResolve(id) {
   try {
     var res = await fetch(BASE + '/api/bucket/' + id + '/resolve', { method: 'POST' });
     if (!res.ok) throw new Error(await res.text());
+    var d = await res.json();
+    if (d.message) alert(d.message);
     await showDetail(id);
     loadBuckets();
   } catch (e) { alert('resolve 切换失败: ' + e.message); }
@@ -4233,8 +4367,8 @@ async function bucketArchive(id) {
 }
 
 async function bucketDelete(id) {
-  if (!confirm('这将彻底删除此记忆桶，文件不可恢复。确认删除？')) return;
-  if (!confirm('再次确认：你真的要永久删除吗？')) return;
+  if (!confirm('这会把此记忆桶移入删除档案，并从日常界面隐藏；文件仍保留在 archive/ 中。继续？')) return;
+  if (!confirm('再次确认：这不是物理抹除。彻底删除请使用清理模式。')) return;
   try {
     var res = await fetch(BASE + '/api/bucket/' + id + '?confirm=true', { method: 'DELETE' });
     if (!res.ok) throw new Error(await res.text());
@@ -4272,7 +4406,6 @@ var networkState = {
   panOffset: { x: 0, y: 0 },
   scale: 1,
 };
-
 
 // –– 替换 loadNetwork ––
 async function loadNetwork() {
@@ -5006,9 +5139,9 @@ window.ObPet = (function () {
 function updateChick(total) { if (window.ObPet) ObPet.setCount(total || 0); }
 
 // =====================================================
-// 小鸡的「天气 / 时间 / 心情」彩蛋 · ObChickFlavor
-//   hover 时拼一句：时段 + 天气 + 记忆心情；随时段给画布上色温
-//   纯 best-effort，失败就静默不显示（不抢 ObPet 的戏）
+// ⑨b 小鸡彩蛋：天气 / 时段 / 最近记忆「心理状态」联动
+// 纯装饰、可有可无：悬停时把这三样揉成一句话塞进 .chick-tip，
+// 并按时段给画布上色。任何一环失败都静默跳过，不影响小鸡本体。
 // =====================================================
 (function ObChickFlavor(){
   var weather = null;  // {emoji, desc, temp} | null
@@ -5996,10 +6129,6 @@ async function loadConfig() {
     refreshEmbInfo();
     refreshEnvConfig();
     document.getElementById('cfg-merge').value = cfg.merge_threshold || 75;
-    var sf = cfg.surfacing || {};
-    document.getElementById('cfg-sf-breath-results').value = sf.breath_max_results || 20;
-    document.getElementById('cfg-sf-breath-tokens').value = sf.breath_max_tokens || 10000;
-    document.getElementById('cfg-sf-feel-tokens').value = sf.feel_max_tokens || 6000;
     var mcpAuthEl = document.getElementById('cfg-mcp-auth');
     if (mcpAuthEl) mcpAuthEl.value = cfg.mcp_require_auth ? 'true' : 'false';
     var portEl = document.getElementById('cfg-host-port');
@@ -6010,6 +6139,10 @@ async function loadConfig() {
         ? 'Docker 部署：容器内端口固定，对外端口由 host 映射决定。保存后请在宿主跑 <code>OMBRE_HOST_PORT=端口 docker compose -f deploy/docker-compose.yml up -d</code>（或 <code>bash deploy/deploy.sh</code>）重建生效。'
         : '裸机部署：保存后<b>重启服务</b>即监听新端口（留空=默认 18001）。';
     }
+    var sf = cfg.surfacing || {};
+    document.getElementById('cfg-sf-breath-results').value = sf.breath_max_results || 20;
+    document.getElementById('cfg-sf-breath-tokens').value = sf.breath_max_tokens || 10000;
+    document.getElementById('cfg-sf-feel-tokens').value = sf.feel_max_tokens || 6000;
     document.getElementById('config-readonly').innerHTML =
       'Transport: <strong>' + cfg.transport + '</strong><br>数据目录: <strong>' + cfg.buckets_dir + '</strong>'
       + '<br>运行环境: <strong>' + (cfg.in_docker ? 'Docker 容器' : '裸机') + '</strong>'
@@ -6027,8 +6160,11 @@ async function refreshEnvConfig() {
     var d = await readJsonSafe(r);
     if (!d || !d.ok) return;
     var f = d.fields || {};
-    // Compress
     var el;
+    // Identity
+    el = document.getElementById('env-ai-name');
+    if (el) el.value = (f['AI_NAME'] || {}).value || '';
+    // Compress
     el = document.getElementById('env-compress-key');
     if (el) { el.placeholder = f['OMBRE_COMPRESS_API_KEY'] && f['OMBRE_COMPRESS_API_KEY'].is_set ? '当前：' + (f['OMBRE_COMPRESS_API_KEY'].value || '***') + '（留空 = 不修改）' : '未设置'; el.value = ''; }
     el = document.getElementById('env-compress-base');
@@ -6037,6 +6173,8 @@ async function refreshEnvConfig() {
     if (el) el.value = (f['OMBRE_COMPRESS_MODEL'] || {}).value || '';
     el = document.getElementById('env-compress-format');
     if (el) el.value = (f['OMBRE_COMPRESS_FORMAT'] || {}).value || 'openai_compat';
+    el = document.getElementById('env-compress-timeout');
+    if (el) el.value = (f['OMBRE_COMPRESS_TIMEOUT_SECONDS'] || {}).value || '';
     // Embed
     el = document.getElementById('env-embed-key');
     if (el) { el.placeholder = f['OMBRE_EMBED_API_KEY'] && f['OMBRE_EMBED_API_KEY'].is_set ? '当前：' + (f['OMBRE_EMBED_API_KEY'].value || '***') + '（留空 = 不修改）' : '未设置'; el.value = ''; }
@@ -6056,13 +6194,15 @@ async function refreshEnvConfig() {
     }
     el = document.getElementById('env-embed-model');
     if (el) el.value = (f['OMBRE_EMBED_MODEL'] || {}).value || '';
+    el = document.getElementById('env-embed-timeout');
+    if (el) el.value = (f['OMBRE_EMBED_TIMEOUT_SECONDS'] || {}).value || '';
     // Webhook
     el = document.getElementById('env-hook-url');
     if (el) el.value = (f['OMBRE_HOOK_URL'] || {}).value || '';
     el = document.getElementById('env-hook-skip');
     if (el) { var skipVal = (f['OMBRE_HOOK_SKIP'] || {}).value || ''; el.value = (skipVal === 'true' || skipVal === '1' || skipVal === 'yes') ? 'true' : ''; }
-    // 平台 env 覆盖警告：检查哪些字段由启动期平台 env 注入（from_boot），
-    // 优先级高于 config.yaml，重启会盖回——dashboard 在这里永远赢不了。
+    // 平台 env 覆盖告警：检查哪些字段由启动期平台 env 注入（from_boot），
+    // 它们的优先级高于 config.yaml，重启会盖回——dashboard 在这里永远赢不了。
     refreshEnvShadowWarning();
   } catch (e) {
     // 不再静默吞掉：把失败显示在状态行 + 用 placeholder 提示，避免 key 框卡在「加载中…」
@@ -6075,21 +6215,25 @@ async function refreshEnvConfig() {
   }
 }
 
-// 检测「被平台环境变量接管」的字段并红字警告。
-// 数据源 /api/env-vars 的 from_boot=true → 该 OMBRE_* 在进程启动那一刻就由平台注入，
-// 优先级高于 config.yaml；dashboard 保存到 config.yaml 的同名值会在下次重启被覆盖。
+// 检测「被平台环境变量接管」的字段并红字告警。
+// 数据源 /api/env-vars 的 from_boot=true ⇒ 该 env 在进程启动那一刻就由平台注入，
+// 优先级高于 config.yaml / .env；dashboard 保存的同名值会在下次重启被它覆盖。
 // （注意：dashboard 保存当下也会写 os.environ，故必须用 from_boot 而非 set 来判定，
 //  否则保存后会误报。）
 async function refreshEnvShadowWarning() {
   var box = document.getElementById('env-shadow-warning');
   if (!box) return;
   var LABELS = {
+    AI_NAME: 'AI 显示名',
     OMBRE_COMPRESS_BASE_URL: '压缩 Base URL',
     OMBRE_COMPRESS_MODEL: '压缩 Model',
     OMBRE_COMPRESS_API_KEY: '压缩 API Key',
+    OMBRE_COMPRESS_TIMEOUT_SECONDS: '压缩 Timeout',
     OMBRE_EMBED_BASE_URL: '向量化 Base URL',
     OMBRE_EMBED_MODEL: '向量化 Model',
     OMBRE_EMBED_API_KEY: '向量化 API Key',
+    OMBRE_EMBED_TIMEOUT_SECONDS: '向量化 Timeout',
+    OMBRE_MCP_REQUIRE_AUTH: 'MCP OAuth 开关',
   };
   try {
     var r = await authFetch('/api/env-vars');
@@ -6104,17 +6248,20 @@ async function refreshEnvShadowWarning() {
     box.innerHTML =
       '<strong>⚠ 这些字段由平台环境变量提供，重启后会覆盖你在此保存的值：</strong><br>' +
       items + '<br>' +
-      '优先级高于 <code>config.yaml</code>，所以即便这里改成别的服务商、保存生效了，' +
+      '它们的优先级高于 <code>config.yaml</code>，所以即便这里改成别的服务商、保存生效了，' +
       '下次重启/重新部署仍会被平台 env 打回。<br>' +
       '彻底解决：到平台（如 Zeabur）的环境变量里<strong>删除上述变量</strong>，让 config.yaml/此面板成为唯一来源。';
     box.style.display = 'block';
-  } catch (e) { /* 警告是增益信息，失败就静默不挡主流程 */ }
+  } catch (e) { /* 告警是增益信息，失败就静默不挡主流程 */ }
 }
 
 async function saveEnvConfig() {
   var statusEl = document.getElementById('env-config-status');
   statusEl.textContent = '保存中…';
   var updates = {};
+  // Identity
+  var aiName = document.getElementById('env-ai-name').value.trim();
+  updates['AI_NAME'] = aiName;
   // Compress
   var key = document.getElementById('env-compress-key').value.trim();
   if (key) updates['OMBRE_COMPRESS_API_KEY'] = key;
@@ -6124,6 +6271,8 @@ async function saveEnvConfig() {
   if (model !== undefined) updates['OMBRE_COMPRESS_MODEL'] = model;
   var fmt = (document.getElementById('env-compress-format') || {value:''}).value;
   if (fmt) updates['OMBRE_COMPRESS_FORMAT'] = fmt;
+  var timeout = (document.getElementById('env-compress-timeout') || {value:''}).value.trim();
+  updates['OMBRE_COMPRESS_TIMEOUT_SECONDS'] = timeout;
   // Embed
   var ekey = document.getElementById('env-embed-key').value.trim();
   if (ekey) updates['OMBRE_EMBED_API_KEY'] = ekey;
@@ -6131,6 +6280,8 @@ async function saveEnvConfig() {
   if (ebase !== undefined) updates['OMBRE_EMBED_BASE_URL'] = ebase;
   var emodel = document.getElementById('env-embed-model').value.trim();
   if (emodel !== undefined) updates['OMBRE_EMBED_MODEL'] = emodel;
+  var etimeout = (document.getElementById('env-embed-timeout') || {value:''}).value.trim();
+  updates['OMBRE_EMBED_TIMEOUT_SECONDS'] = etimeout;
   // Webhook
   var hookUrl = document.getElementById('env-hook-url').value.trim();
   updates['OMBRE_HOOK_URL'] = hookUrl;
@@ -6423,16 +6574,27 @@ loadVersionBadge();
         if (vl) vl.textContent = 'v' + _obLocalVersion;
       }
 
-      // 从 raw GitHub 读 VERSION 文件，不依赖是否发布过 Release。
-      // 破缓存：raw 走 Fastly CDN（max-age=300），且 fetch 默认会进浏览器 HTTP 缓存——
-      // 用户若在 CDN 还缓存着旧版的 5 分钟窗口内点过检查，浏览器会把旧 VERSION 缓存住，
-      // 之后再点直接读本地缓存 → 永远「已是最新」。加时间戳 + no-store 双保险，每次都拿真新值。
-      const rRaw = await fetch(
-        'https://raw.githubusercontent.com/P0luz/Ombre-Brain/main/VERSION?t=' + Date.now(),
-        { cache: 'no-store' }
-      );
-      if (!rRaw.ok) throw new Error('无法读取 GitHub VERSION 文件（' + rRaw.status + '）');
-      const latestTag = (await rRaw.text()).trim().replace(/^v/, '');
+      // raw.githubusercontent.com 的 main 分支会走 Fastly CDN，push 后可能继续命中旧 VERSION。
+      // 先走 GitHub Contents API 取真实 HEAD 内容；API 不可用时再回退 raw。
+      let latestText = '';
+      try {
+        const rApi = await fetch(
+          'https://api.github.com/repos/P0luz/Ombre-Brain/contents/VERSION?ref=main',
+          { cache: 'no-store', headers: { 'Accept': 'application/vnd.github.raw' } }
+        );
+        if (rApi.ok) latestText = await rApi.text();
+      } catch (_) {}
+
+      if (!latestText.trim()) {
+        const rRaw = await fetch(
+          'https://raw.githubusercontent.com/P0luz/Ombre-Brain/main/VERSION?t=' + Date.now(),
+          { cache: 'no-store' }
+        );
+        if (!rRaw.ok) throw new Error('无法读取 GitHub VERSION 文件（' + rRaw.status + '）');
+        latestText = await rRaw.text();
+      }
+
+      const latestTag = latestText.trim().replace(/^v/, '');
       if (!latestTag) throw new Error('GitHub VERSION 文件为空');
 
       // 尝试读 Release 说明（无 Release 时静默忽略）
@@ -6493,14 +6655,13 @@ function _planCard(p) {
     actions = '<button class="icon-btn" title="重新激活" onclick="planAction(\'' + p.id + '\',\'reopen\')"><i data-lucide="rotate-ccw"></i> 重新激活</button>';
   }
   actions += ' <button class="icon-btn" title="编辑内容" onclick="planEdit(\'' + p.id + '\')"><i data-lucide="pencil"></i> 编辑</button>';
-  var ownerTag = _ownerTagHtml(p.owner);
   return '<div class="plan-card" data-id="' + p.id + '" style="border:1px solid var(--border);border-radius:4px;padding:14px 16px;background:var(--surface-solid);">' +
     '<div style="display:flex;align-items:flex-start;gap:10px;">' +
       '<div style="flex:1;">' +
         '<div style="font-weight:500;color:var(--text);margin-bottom:4px;">' + name + '</div>' +
         '<div style="font-size:13px;color:var(--text-dim);line-height:1.7;white-space:pre-wrap;">' + content + '</div>' +
         weightHtml +
-        '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">' + ownerTag + '创建于 ' + created + ' · id <code>' + esc(p.id) + '</code></div>' +
+        '<div style="font-size:11px;color:var(--text-light);margin-top:6px;">创建于 ' + created + ' · id <code>' + esc(p.id) + '</code></div>' +
         historyHtml +
       '</div>' +
       '<div style="display:flex;flex-direction:column;gap:6px;font-size:12px;">' + actions + '</div>' +
@@ -6668,6 +6829,7 @@ window.addEventListener('load', function() {
 // --- Import functions ---
 const uploadZone = document.getElementById('import-upload-zone');
 const fileInput = document.getElementById('import-file-input');
+let pendingImportFile = null;
 
 uploadZone.addEventListener('click', () => fileInput.click());
 uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.borderColor = 'var(--accent)'; });
@@ -6675,9 +6837,83 @@ uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = 
 uploadZone.addEventListener('drop', e => {
   e.preventDefault();
   uploadZone.style.borderColor = 'var(--border)';
-  if (e.dataTransfer.files.length) startImport(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files.length) runImportPreflight(e.dataTransfer.files[0]);
 });
-fileInput.addEventListener('change', () => { if (fileInput.files.length) startImport(fileInput.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files.length) runImportPreflight(fileInput.files[0]); });
+
+function renderImportPreflight(data) {
+  const panel = document.getElementById('import-preflight-panel');
+  const fileEl = document.getElementById('import-preflight-file');
+  const summary = document.getElementById('import-preflight-summary');
+  const warn = document.getElementById('import-preflight-warnings');
+  const preview = document.getElementById('import-preflight-preview');
+  const btn = document.getElementById('import-start-confirm-btn');
+  if (!panel || !summary || !btn) return;
+  panel.style.display = '';
+  if (fileEl) fileEl.textContent = data.filename || (pendingImportFile ? pendingImportFile.name : '');
+  if (!data.ok) {
+    summary.style.color = 'var(--negative)';
+    summary.textContent = '预检失败：' + (data.error || '无法识别文件');
+    btn.disabled = true;
+    if (warn) warn.style.display = 'none';
+    if (preview) preview.style.display = 'none';
+    return;
+  }
+  summary.style.color = data.can_start ? 'var(--text-dim)' : 'var(--warning)';
+  summary.innerHTML =
+    '格式：<b>' + esc(data.detected_format || 'unknown') + '</b>'
+    + ' · 轮次：<b>' + (data.turns_count || 0) + '</b>'
+    + ' · 分块：<b>' + (data.chunks_count || 0) + '</b>'
+    + ' · 预计 API 调用：<b>' + (data.estimated_api_calls || 0) + '</b>'
+    + ' · 大小：<b>' + Math.round((data.size_bytes || 0) / 1024) + ' KB</b>'
+    + (!data.llm_ready ? '<br><span style="color:var(--negative)">压缩/打标 LLM 未就绪，暂不能导入。</span>' : '')
+    + (data.import_running ? '<br><span style="color:var(--negative)">已有导入任务运行中，请完成后再开始。</span>' : '');
+  const warnings = data.warnings || [];
+  if (warn) {
+    warn.style.display = warnings.length ? '' : 'none';
+    warn.innerHTML = warnings.map(function(w) { return '⚠ ' + esc(w); }).join('<br>');
+  }
+  if (preview) {
+    preview.style.display = data.first_chunk_preview ? '' : 'none';
+    preview.textContent = data.first_chunk_preview || '';
+  }
+  btn.disabled = !data.can_start;
+}
+
+async function runImportPreflight(file) {
+  pendingImportFile = file;
+  const panel = document.getElementById('import-preflight-panel');
+  const summary = document.getElementById('import-preflight-summary');
+  const btn = document.getElementById('import-start-confirm-btn');
+  if (panel) panel.style.display = '';
+  if (summary) { summary.style.color = 'var(--text-dim)'; summary.textContent = '预检中…'; }
+  if (btn) btn.disabled = true;
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch(BASE + '/api/import/preflight', { method: 'POST', body: fd });
+    const data = await res.json();
+    renderImportPreflight(data);
+  } catch (e) {
+    renderImportPreflight({ ok: false, error: e.message || String(e), filename: file.name });
+  }
+}
+
+function clearImportPreflight() {
+  pendingImportFile = null;
+  if (fileInput) fileInput.value = '';
+  const panel = document.getElementById('import-preflight-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+async function confirmStartImport() {
+  if (!pendingImportFile) return;
+  const file = pendingImportFile;
+  pendingImportFile = null;
+  const btn = document.getElementById('import-start-confirm-btn');
+  if (btn) btn.disabled = true;
+  await startImport(file);
+}
 
 async function startImport(file) {
   const preserveRaw = document.getElementById('import-preserve-raw').checked;
@@ -6687,6 +6923,7 @@ async function startImport(file) {
     const res = await fetch(BASE + '/api/import/upload?preserve_raw=' + (preserveRaw ? '1' : '0'), { method: 'POST', body: fd });
     const data = await res.json();
     if (data.error) { alert('导入失败: ' + data.error); return; }
+    clearImportPreflight();
     document.getElementById('import-progress').style.display = '';
     document.getElementById('import-pause-btn').style.display = '';
     pollImportStatus();
@@ -6762,7 +6999,7 @@ async function loadImportResults() {
           <button onclick="reviewAction('${b.id}','pin')" class="icon-btn" title="固定为永久记忆"><i data-lucide="pin"></i> 固定</button>
           <button onclick="reviewAction('${b.id}','important')" class="icon-btn" title="标为重要"><i data-lucide="star"></i> 重要</button>
           <button onclick="reviewAction('${b.id}','noise')" class="icon-btn" title="标为噪声并resolve"><i data-lucide="trash-2"></i> 噪声</button>
-          <button onclick="if(confirm('确定删除？'))reviewAction('${b.id}','delete')" class="icon-btn" title="彻底删除" style="color:var(--negative);"><i data-lucide="x"></i> 删除</button>
+          <button onclick="if(confirm('确定移入删除档案？'))reviewAction('${b.id}','delete')" class="icon-btn" title="删除到档案" style="color:var(--negative);"><i data-lucide="x"></i> 删除到档案</button>
         </div>
       </div>
     `).join('');
@@ -6819,6 +7056,86 @@ async function batchReview(idsJson, action) {
 // ========================================
 // iter 1.6 §3 — heartbeat indicator + log viewer
 // ========================================
+// v3-debug-panel
+let _v3DebugRecords = [];
+
+async function loadV3Debug() {
+  const list = document.getElementById('v3-debug-list');
+  const meta = document.getElementById('v3-debug-meta');
+  const detail = document.getElementById('v3-debug-detail');
+  if (!list || !meta || !detail) return;
+  list.innerHTML = '<div class="loading" style="padding:20px;">loading...</div>';
+  meta.textContent = '';
+  const moduleValue = (document.getElementById('v3-debug-module')?.value || '').trim();
+  const operationValue = (document.getElementById('v3-debug-operation')?.value || '').trim();
+  const params = new URLSearchParams({ limit: '30' });
+  if (moduleValue) params.set('module', moduleValue);
+  if (operationValue) params.set('operation', operationValue);
+  try {
+    const r = await authFetch('/api/v3/debug/decisions?' + params.toString());
+    if (!r) return;
+    const data = await readJsonSafe(r);
+    _v3DebugRecords = data.records || [];
+    meta.textContent = (_v3DebugRecords.length || 0) + ' records';
+    if (!_v3DebugRecords.length) {
+      list.innerHTML = '<div class="loading" style="padding:20px;">empty</div>';
+      detail.innerHTML = '';
+      return;
+    }
+    list.innerHTML = _v3DebugRecords.map(renderV3DebugDecision).join('');
+    await replayV3Decision(_v3DebugRecords[0].id);
+  } catch (e) {
+    list.innerHTML = '<div style="color:var(--negative);font-size:12px;">' + esc(e.message) + '</div>';
+  }
+}
+
+function renderV3DebugDecision(record, index) {
+  const summary = record.summary || {};
+  const ok = summary.consistency_ok && summary.outcome_ok;
+  const allowed = summary.policy_allowed;
+  const badgeColor = ok && allowed ? 'var(--positive)' : (allowed ? 'var(--warning)' : 'var(--negative)');
+  const surfaces = (summary.projection_surfaces || []).join(', ') || '-';
+  return '<button onclick="replayV3Decision(\'' + esc(record.id) + '\')" ' +
+    'style="text-align:left;background:var(--surface-solid);border:1px solid var(--border);border-radius:4px;padding:10px 12px;cursor:pointer;color:var(--text);">' +
+    '<div style="display:flex;align-items:center;gap:8px;font-size:12px;">' +
+      '<span style="width:7px;height:7px;border-radius:50%;background:' + badgeColor + ';display:inline-block;flex-shrink:0;"></span>' +
+      '<span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(record.module || '-') + '.' + esc(record.operation || '-') + '</span>' +
+      '<span style="margin-left:auto;color:var(--text-light);font-size:11px;">#' + (index + 1) + '</span>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--text-dim);margin-top:6px;word-break:break-all;">' + esc(record.command_id || '') + '</div>' +
+    '<div style="font-size:11px;color:var(--text-light);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(surfaces) + '</div>' +
+  '</button>';
+}
+
+async function replayV3Decision(identifier) {
+  const detail = document.getElementById('v3-debug-detail');
+  if (!detail) return;
+  detail.innerHTML = '<div class="loading" style="padding:20px;">replay...</div>';
+  try {
+    const r = await authFetch('/api/v3/debug/replay/' + encodeURIComponent(identifier));
+    if (!r) return;
+    const data = await readJsonSafe(r);
+    const replay = data.replay || {};
+    const explanation = replay.explanation || {};
+    const issues = replay.issues || [];
+    detail.innerHTML =
+      '<div style="display:grid;grid-template-columns:130px 1fr;gap:8px 12px;font-size:12px;">' +
+        '<span style="color:var(--text-light);">decision</span><span style="word-break:break-all;">' + esc((data.record || {}).id || identifier) + '</span>' +
+        '<span style="color:var(--text-light);">module</span><span>' + esc(explanation.module || '-') + '.' + esc(explanation.operation || '-') + '</span>' +
+        '<span style="color:var(--text-light);">policy</span><span>' + String(explanation.policy_allowed) + '</span>' +
+        '<span style="color:var(--text-light);">consistency</span><span>' + String(explanation.consistency_ok) + '</span>' +
+        '<span style="color:var(--text-light);">replay</span><span>' + String(replay.ok) + '</span>' +
+        '<span style="color:var(--text-light);">surfaces</span><span style="word-break:break-all;">' + esc((explanation.projection_surfaces || []).join(', ') || '-') + '</span>' +
+      '</div>' +
+      '<pre style="margin-top:14px;background:var(--bg);border:1px solid var(--border);border-radius:3px;padding:12px;white-space:pre-wrap;word-break:break-word;max-height:42vh;overflow:auto;font-size:11px;">' +
+      esc(JSON.stringify({ issues: issues, explanation: explanation }, null, 2)) +
+      '</pre>';
+  } catch (e) {
+    detail.innerHTML = '<div style="color:var(--negative);font-size:12px;">' + esc(e.message) + '</div>';
+  }
+}
+// v3-debug-panel-end
+
 async function pollHeartbeat() {
   const dot = document.getElementById('heartbeat-dot');
   const txt = document.getElementById('heartbeat-text');
@@ -6851,17 +7168,18 @@ async function loadLogs() {
     const r = await fetch(BASE + '/api/logs?level=' + encodeURIComponent(level) + '&limit=' + limit);
     const d = await r.json();
     if (d.error) { out.textContent = '加载失败: ' + d.error; return; }
+    // 界面只显示文件名（如 server.log），完整路径放 title 悬停提示里——
+    // 既干净，也不把本机用户名/目录结构暴露在界面上。
+    const fullPath = d.log_file || '';
+    const fileName = fullPath.split(/[\\/]/).pop() || fullPath;
+    meta.title = fullPath;
     if (!d.lines || !d.lines.length) {
       out.textContent = d.note || '(无符合条件的日志)';
-      const _fp = d.log_file || '';
-      meta.textContent = _fp.split(/[\\/]/).pop() || _fp;
-      meta.title = _fp;
+      meta.textContent = fileName;
       return;
     }
     out.textContent = d.lines.join('\n');
-    const _fp = d.log_file || '';
-    meta.textContent = (_fp.split(/[\\/]/).pop() || _fp) + ' · ' + d.count + ' 行';
-    meta.title = _fp;
+    meta.textContent = fileName + ' · ' + d.count + ' 行';
     out.scrollTop = out.scrollHeight;
   } catch (e) { out.textContent = '加载失败: ' + e.message; }
 }
@@ -7492,9 +7810,9 @@ async function loadLetters() {
   const cnt = document.getElementById('letter-count');
   list.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:24px;">加载中…</div>';
   try {
+    // custom: owner filter
     var qs = [];
     if (filter) qs.push('author=' + encodeURIComponent(filter));
-    // custom: owner filter
     if (_letterOwnerFilter) qs.push('owner=' + encodeURIComponent(_letterOwnerFilter));
     const url = BASE + '/api/letters' + (qs.length ? ('?' + qs.join('&')) : '');
     const r = await fetch(url);
@@ -7512,10 +7830,11 @@ async function loadLetters() {
 }
 
 function _renderLetter(l) {
+  // 用户侧显示 user_name；AI 侧（及任意自定义署名）原样显示存储的 author 值。
   const who = l.author === 'user' ? (l.user_name || 'user') : (l.author || 'AI');
   const accentColor = l.author !== 'user' ? 'var(--accent)' : 'var(--text-dim)';
   return `<article style="background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:18px 22px;box-shadow:4px 4px 10px var(--shadow-dark-subtle), -4px -4px 10px var(--shadow-light);" data-id="${l.id}">
-    <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.15em;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <div style="font-size:11px;color:var(--text-dim);letter-spacing:0.15em;display:flex;justify-content:space-between;margin-bottom:8px;">
       <span style="color:${accentColor};font-weight:600;">${esc(who)}</span><span>${_ownerTagHtml(l.owner)}${esc(l.date || '')}</span>
     </div>
     ${l.title ? `<div style="font-family:'Cormorant Garamond', serif;font-size:17px;font-weight:600;margin-bottom:8px;color:var(--text);">${esc(l.title)}</div>` : ''}
@@ -7527,22 +7846,25 @@ function _renderLetter(l) {
   </article>`;
 }
 
+// 日期「按钮」：点按钮 → 主动唤起浏览器原生日期选择器。
+// showPicker() 是专门干这事的 API（Chrome/Edge/Safari 支持）；
+// 不支持时退回 focus+click，再不行就让隐藏 input 临时可见聚焦。
 function openDatePicker() {
-    const inp = document.getElementById('letter-date');
-    if (!inp) return;
-    try {
-      if (typeof inp.showPicker === 'function') { inp.showPicker(); return; }
-    } catch (e) { /* 某些浏览器在非用户手势下会抛错，下面兜底 */ }
-    inp.focus();
-    inp.click();
-  }
+  const inp = document.getElementById('letter-date');
+  if (!inp) return;
+  try {
+    if (typeof inp.showPicker === 'function') { inp.showPicker(); return; }
+  } catch (e) { /* 某些浏览器在非用户手势下会抛错，下面兜底 */ }
+  inp.focus();
+  inp.click();
+}
 
-  // 选完日期后，把按钮上的文字更新成所选日期（没选则回到提示）。
-  function syncDateLabel() {
-    const inp = document.getElementById('letter-date');
-    const lbl = document.getElementById('letter-date-label');
-    if (inp && lbl) lbl.textContent = inp.value || '请选择日期';
-  }
+// 选完日期后，把按钮上的文字更新成所选日期（没选则回到提示）。
+function syncDateLabel() {
+  const inp = document.getElementById('letter-date');
+  const lbl = document.getElementById('letter-date-label');
+  if (inp && lbl) lbl.textContent = inp.value || '请选择日期';
+}
 
 async function sendLetter() {
   const status = document.getElementById('letter-status');
@@ -7609,12 +7931,12 @@ async function editLetter(id) {
 }
 
 async function deleteLetter(id) {
-  if (!confirm('这将彻底删除这封信，文件不可恢复。确认删除？')) return;
-  if (!confirm('再次确认：你真的要永久删除这封信吗？')) return;
+  if (!confirm('这会把这封信移入删除档案；文件仍保留在 archive/ 中。继续？')) return;
+  if (!confirm('再次确认：这不是物理抹除。')) return;
   try {
     const r = await fetch(BASE + '/api/letter/' + encodeURIComponent(id) + '?confirm=true', { method: 'DELETE' });
     const d = await r.json();
-    if (d.ok) { alert('已删除'); loadLetters(); }
+    if (d.ok) { alert('已删除到档案'); loadLetters(); }
     else { alert(d.error || '删除失败'); }
   } catch (e) { alert(e.message); }
 }
@@ -8071,7 +8393,7 @@ async function syncExistingHuman() {
     var changed = (data.renamed && data.renamed.buckets_changed) || 0;
     if (msg) {
       msg.textContent = changed > 0
-        ? ('已把「' + data.from + '」换成「' + data.to + '」，更新了 ' + changed + ' 条记忆')
+        ? ('已把「' + data.from + '」→「' + data.to + '」，更新了 ' + changed + ' 条记忆')
         : ('没有找到含「' + data.from + '」的旧记忆');
       msg.style.color = changed > 0 ? 'var(--positive)' : 'var(--text-dim)';
     }
@@ -8209,6 +8531,6 @@ function renderSelfEntries() {
 })();
 </script>
 
-<script src="/static/custom.js?v=6"></script>
+<script src="/static/custom.js?v=7"></script>
 </body>
 </html>

@@ -10,13 +10,17 @@
 
 | 改造模块 | 新建文件 | 修改文件 | 状态 |
 |----------|---------|---------|------|
-| Reranker 重排序引擎 | `src/reranker_engine.py`, `src/web/reranker.py` | `server.py`, `tools/_runtime.py`, `tools/breath/search.py`, `web/__init__.py`, `web/_shared.py`, `frontend/dashboard.html` | 已完成 |
-| 多 AI 记忆隔离 (owner) | `src/owner_filter.py` | `server.py`, `bucket_manager.py`, `tools/breath/search.py`, `tools/breath/feel.py`, `tools/breath/importance.py`, `tools/breath/surface.py` | 已完成 |
-| 域 / Domain 时间线视图 | `seed_mock_data.py`（mock 数据脚本，可选） | `web/buckets.py`, `frontend/dashboard.html` | 已完成 |
-| Plan/Letter owner 隔离 | 无新建 | `server.py`, `tools/plan/core.py`, `tools/_common.py`, `tools/dream/__init__.py`, `web/hooks.py`, `web/plans.py`, `web/letters.py`, `frontend/dashboard.html` | 已完成 |
-| 前端代码抽离（减少冲突） | `frontend/custom.css`, `frontend/custom.js` | `src/web/dashboard.py`, `frontend/dashboard.html` | 已完成 |
+| 一：Reranker 重排序引擎 | `src/reranker_engine.py`, `src/web/reranker.py` | `server.py`, `tools/_runtime.py`, `tools/breath/search.py`, `web/__init__.py`, `web/_shared.py`, `frontend/dashboard.html` | 已完成 |
+| 二：多 AI 记忆隔离 (owner) | `src/owner_filter.py` | `server.py`, `bucket_manager.py`, `tools/breath/search.py`, `tools/breath/feel.py`, `tools/breath/importance.py`, `tools/breath/surface.py` | 已完成 |
+| 三：域 / Domain 时间线视图 | `seed_mock_data.py`（mock 数据脚本，可选） | `web/buckets.py`, `frontend/dashboard.html` | 已完成 |
+| 四：Plan/Letter owner 隔离 | 无新建 | `server.py`, `tools/plan/core.py`, `tools/_common.py`, `tools/dream/__init__.py`, `web/hooks.py`, `web/plans.py`, `web/letters.py`, `frontend/dashboard.html` | 已完成 |
+| 五：前端代码抽离（减少冲突） | `frontend/custom.css`, `frontend/custom.js` | `src/web/dashboard.py`, `frontend/dashboard.html` | 已完成 |
+| 六：8 固定主题域 + UI 优化 | 无新建 | `frontend/custom.js`, `frontend/custom.css`, `frontend/dashboard.html`, `src/dehydrator.py`, `src/reclassify_api.py`, `src/import_memory.py` | 已完成 |
+| 七：并行脱水 | `src/parallel_dehydrate.py` | `src/tools/breath/search.py` | 已完成 |
+| 八：/breath-hook owner 扩展 | 无新建 | `src/web/hooks.py` | 已完成 |
+| 九：reranker 面板 null 检查修复 | 无新建 | `frontend/custom.js` | 已完成 |
 
-**总计**：6 个新建文件 + 22 个修改文件。
+**总计**：7 个新建文件 + 24 个修改文件。
 
 ---
 
@@ -532,6 +536,127 @@ git merge --no-edit origin/main
 - **编码处理**：PowerShell 解压时显式 UTF-8，写入时用 `[System.Text.UTF8Encoding]::new($false)` 避免 BOM
 - **owner 字段**：全部添加 `owner: alove`
 - **域归一化**：Python 脚本 `normalize_domains.py`（已删除，一次性使用）批量处理 83 个文件
+
+---
+
+## 改造七：并行脱水（asyncio.gather 替换顺序 for-await）
+
+### 目的
+
+`breath(query=...)` 检索到 N 条候选记忆后，原上游逻辑是顺序 `for bucket in matches: await dehydrate(...)`，每条脱水耗时 ~3s（调 LLM 摘要），8 条记忆要 ~24s。改成 `asyncio.gather` 并行执行后，总耗时 ≈ 最慢的一条（~3-5s）。
+
+### 设计要点
+
+- **Semaphore(8) 限并发**：避免 Gemini 免费层 429
+- **脱水结果有 SQLite 缓存**：已脱过的不重复调 LLM；并行只会多缓存几条（一次性成本），不改变返回内容
+- **return_exceptions=True**：保留调用方原有的逐条异常处理逻辑（跳过或记日志）
+- **依赖注入**：`dehydrator` / `logger` 由调用方作为参数传入，避免与 `tools._runtime` 循环 import
+- **并入上游 v2.4.2 逻辑**：`is_core` 空摘要兜底（脱水成功但返回空字符串时回退到原始文本）
+
+### 新建文件
+
+#### `src/parallel_dehydrate.py`
+
+两个 async helper 函数：
+
+- `dehydrate_matches_parallel(matches, q_valence, dehydrator, logger, sem_limit=8)` → `list[(bucket, summary, is_core) | Exception]`
+  - 包含：展示层 valence ±0.1 微调（记忆重构）、is_core 桶 fallback、is_core 空摘要兜底
+- `dehydrate_drift_parallel(drifted, dehydrator, logger, sem_limit=8)` → `list[str | Exception]`
+  - drift 桶不区分 core/non-core，失败直接作为 Exception 返回由调用方跳过
+
+### 修改文件
+
+#### `src/tools/breath/search.py`
+
+- **import**：`from parallel_dehydrate import dehydrate_matches_parallel, dehydrate_drift_parallel`（移除 `import asyncio`）
+- **主脱水块**（原 for 循环 + try/except）替换为 `dehydrate_matches_parallel(matches, q_valence, rt.dehydrator, rt.logger)` 调用
+- **drift 脱水块**（原内联 `_dehydrate_drift` + `asyncio.gather`）替换为 `dehydrate_drift_parallel(drifted, rt.dehydrator, rt.logger)` 调用
+
+### 分离设计（与改造五同理念）
+
+并行脱水逻辑从 `search.py` 内联代码分离到独立文件 `parallel_dehydrate.py`，与 `owner_filter.py`、`reranker_engine.py` 同级。好处：
+- `search.py` 的 custom 占用从 ~68 行降到 ~8 行
+- 上游更新 `search.py` 时冲突面极小
+- 并行脱水逻辑可独立维护，不与上游的脱水流程改动冲突
+
+### 上游更新时需检查
+
+| 上游改动点 | 检查内容 |
+|-----------|---------|
+| `search.py` 的脱水流程 | 上游是否改脱水逻辑导致 `dehydrate_matches_parallel` 的输入/输出格式不匹配 |
+| `search.py` 的 drift 块 | 上游是否改 drift 逻辑导致 `dehydrate_drift_parallel` 的输入不匹配 |
+| `dehydrator.py` 的 `dehydrate()` 签名 | 上游是否改签名导致 helper 内调用失败 |
+
+### 降级安全性
+
+- `parallel_dehydrate.py` import 失败 → `search.py` 启动报错（需修复，不会静默降级）
+- 并行脱水异常 → `return_exceptions=True` → 调用方跳过异常项 → 行为与上游顺序脱水的逐条异常处理一致
+
+---
+
+## 改造八：/breath-hook owner 过滤扩展到 pinned/unresolved/self
+
+### 目的
+
+改造四（Plan/Letter owner 隔离）只在 `/breath-hook` 的**信件段**加了 owner 过滤。后续发现 pinned、unresolved、self（I 工具）三段也应按 owner 过滤，否则 A爱 的对话开头会浮现 Pearl 的钉选记忆、未解决事件和自我认知。
+
+### 修改文件
+
+#### `src/web/hooks.py`
+
+扩展改造四的 owner 过滤，从仅信件段扩展到全部 4 段：
+
+| 段 | 改造四 | 改造八 |
+|----|--------|--------|
+| pinned（钉选/保护） | 未过滤 | ✅ 按 `hook_owner_set` 过滤 |
+| unresolved（未解决事件） | 未过滤 | ✅ 按 `hook_owner_set` 过滤 |
+| letters（信件） | ✅ 已过滤 | 保持 |
+| self（I 工具自我认知） | 未过滤 | ✅ 按 `hook_owner_set` 过滤 |
+
+- **L96-97**：`hook_owner_set = parse_owner_param(request.query_params.get("owner", ""))`
+- **L102-103**：pinned 段按 owner 过滤
+- **L111-112**：unresolved 段按 owner 过滤
+- **L151-152**：letters 段按 owner 过滤（改造四已有，保持）
+- **L186-187**：self 段按 owner 过滤
+
+### 上游更新时需检查
+
+| 上游改动点 | 检查内容 |
+|-----------|---------|
+| `hooks.py` 的 `/breath-hook` 各段逻辑 | 上游是否重构段结构导致 owner 过滤无处插入 |
+| `hooks.py` 的 self/I 段 | 上游是否改 self 段逻辑导致过滤失效 |
+
+### 降级安全性
+
+- `?owner=` 不传 → `hook_owner_set=None` → 各段均不过滤 → 行为与 upstream 完全一致
+- 老数据无 owner 字段 → `get_bucket_owner()` 返回 `shared` → 传 `?owner=shared` 时可见
+
+---
+
+## 改造九：reranker 设置面板 null 检查修复
+
+### 目的
+
+reranker 设置面板（`custom.js` 的 `refreshRrInfo()`）在 dashboard DOM 元素缺失时会报错，导致后续所有更新全部跳过——面板加载失败后无法显示 reranker 状态、无法保存配置。此外 `keyIsAlreadySaved` 判定逻辑有误，已保存 key 的输入框被误判为空导致无法拉取模型列表。
+
+### 修改文件
+
+#### `frontend/custom.js`
+
+- **`refreshRrInfo()` 函数**：每个 DOM 元素更新前加 `null` 检查（`if (_el = document.getElementById(...)) _el.textContent = ...`），避免单个元素缺失导致后续更新全部跳过
+- **`keyIsAlreadySaved` 判定**：`phEl.placeholder.indexOf('当前:') !== -1 && phEl.placeholder.indexOf('加载中') === -1`——只有 placeholder 显示"当前:"且不是"加载中"时才判定为已保存，修复误匹配
+
+### 上游更新时需检查
+
+| 上游改动点 | 检查内容 |
+|-----------|---------|
+| `custom.js` 的 `refreshRrInfo()` | 上游不会改动 custom.js（B 类文件），无需检查 |
+| dashboard.html 的 reranker 面板 DOM | 上游是否改 DOM 元素 ID 导致 `getElementById` 找不到元素（null 检查可兜底，但元素不会更新） |
+
+### 降级安全性
+
+- DOM 元素缺失 → null 检查跳过该元素 → 其他元素正常更新 → 面板部分功能可用（不报错）
+- `keyIsAlreadySaved` 误判修复后 → 已保存 key 的输入框正确识别 → 可正常拉取模型列表和测试
 
 ---
 

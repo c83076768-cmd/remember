@@ -75,6 +75,7 @@ dehydration:
   # api_key: ""    # ⚠️ Use env var OMBRE_COMPRESS_API_KEY instead / 请使用环境变量 OMBRE_COMPRESS_API_KEY
   max_tokens: 1024
   temperature: 0.1
+  timeout_seconds: 120             # LLM request timeout seconds / LLM 请求超时秒数
 
 # --- Decay parameters / 记忆衰减参数 ---
 # Simulates Ebbinghaus forgetting curve, auto-archives inactive memories
@@ -95,6 +96,7 @@ embedding:
   backend: "api"                  # 只支持 api（OpenAI 兼容端点）
   model: "gemini-embedding-001"   # 云端模型名（如 gemini-embedding-001）
   base_url: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  timeout_seconds: 120             # Embedding request timeout seconds / 向量化请求超时秒数
   # api_key: ""                   # Use OMBRE_EMBED_API_KEY / 使用 OMBRE_EMBED_API_KEY
 
 # --- Scoring weights / 检索权重参数 ---
@@ -146,12 +148,6 @@ bucket_type_defaults:
   plan:
     weight: 0.5
 
-# --- Obsidian wikilinks / Obsidian 双链自动注入 ---
-wikilink:
-  enabled: true
-  use_tags: false
-  use_domain: true
-  use_auto_keywords: true
-  auto_top_k: 4
-  min_keyword_len: 3
-  exclude_keywords: []
+# --- Deprecated: Obsidian wikilinks auto injection / 已废弃 ---
+# wikilink 自动注入已禁用；OB 只读取正文里的 [[wikilink]] 做网络图。
+# 旧版 config.yaml 中残留的 wikilink.* 配置会被忽略。

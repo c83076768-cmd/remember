@@ -358,7 +358,7 @@ _wsh.init_runtime(
     migrate_engine=migrate_engine,
     github_sync_instance=github_sync_instance,
     restart_github_auto_task=_restart_github_auto_task,
-    reranker_engine=reranker_engine,  # 插件：注入 reranker
+    reranker_engine=reranker_engine,
 )
 # 启动时把磁盘上的会话装回内存（容器重启不踢登录）。鉴权/会话逻辑全在 web/_shared.py，
 # server.py 自身已无 @mcp.custom_route 路由，只需启动时载入一次会话。
@@ -554,7 +554,7 @@ _tools_runtime.init(
     logger=logger,
     fire_webhook=_fire_webhook,
     mark_op=_mark_op,
-    reranker_engine=reranker_engine,  # 插件：注入 reranker
+    reranker_engine=reranker_engine,
 )
 
 
@@ -706,7 +706,7 @@ async def release(bucket_id: str) -> str:
 
 @mcp_extra.tool()
 async def pulse(include_archive: Optional[bool] = False) -> str:
-    """返回记忆系统状态摘要:固化/动态/衰减/归档桶数量、总占用、衰减引擎运行状态,以及所有桶的摘要列表。include_archive=True 同时返回归档区。"""
+    """返回记忆系统状态摘要:固化/动态/归档/feel/plan/letter 数量、总占用、衰减引擎运行状态,以及所有桶的摘要列表。include_archive=True 同时返回归档区。"""
     return await _with_notice(
         _t_anchor.pulse(include_archive=include_archive),
         op="pulse",
