@@ -531,7 +531,7 @@ git merge --no-edit origin/main
 
 ### 数据恢复详情
 
-- **备份源**：`D:\Backup\Users\12075\Documents\xwechat_files\wxid_ej8ioygw1yqz12_4694\msg\file\2026-06\ombre_export_1782406987.zip`
+- **备份源**：本地微信文件夹下的 `ombre_export_1782406987.zip`（路径已脱敏）
 - **恢复内容**：106 个 .md 记忆桶文件
 - **编码处理**：PowerShell 解压时显式 UTF-8，写入时用 `[System.Text.UTF8Encoding]::new($false)` 避免 BOM
 - **owner 字段**：全部添加 `owner: alove`
